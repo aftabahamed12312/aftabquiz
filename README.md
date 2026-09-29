@@ -40,6 +40,23 @@ Vercel functions do not provide a persistent WebSocket server. The live Socket.I
 `netlify.toml` configures the Vite build, SPA fallback, API/media proxy, and Netlify Image CDN. Before deploying, replace every `YOUR-BACKEND-HOST` value in `netlify.toml` with the public URL of the persistent Express/Socket.IO server, for example `https://your-app.onrender.com`.
 
 Keep the backend on Render, Railway, or a VPS. Netlify and Vercel functions do not provide the persistent Socket.IO server required by the live game. Set `MONGO_URI`, `JWT_SECRET`, and `CLIENT_ORIGIN` on that backend host, and set the Netlify environment variable `VITE_SOCKET_URL` to the backend URL so the browser connects directly to the persistent Socket.IO server. `VITE_API_URL` may remain empty when using the Netlify `/api/*` proxy.
+
+## Deploying the frontend on Cloudflare Pages
+
+`wrangler.toml` configures the Cloudflare Pages project and `client/public/_redirects` preserves SPA routes such as `/display` and `/admin`.
+
+Create a Cloudflare Pages project named `aftabquiz`, connect this repository, and use:
+
+- Build command: `npm run build`
+- Build output directory: `client/dist`
+- Root directory: repository root (`.`)
+
+Set these Pages build environment variables:
+
+- `VITE_API_URL`: the public URL of the persistent Express backend
+- `VITE_SOCKET_URL`: the same backend URL for Socket.IO
+
+Keep the backend and MongoDB on Render, Railway, or a VPS. Cloudflare Pages/Workers cannot provide the persistent Socket.IO server required by the live game. For CLI deployment, authenticate Wrangler with `npx wrangler login`, then run `npm run deploy:cloudflare`.
 ## Run with Docker
 
 Install Docker Desktop, copy `.env.example` to `.env`, and set a strong secret:
