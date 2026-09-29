@@ -1,0 +1,43 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval 'db.adminCommand({ ping: 1 }).ok' || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      PORT: 5000
+      MONGO_URI: mongodb://mongo:27017/gyanpunja_quiz
+      UPLOAD_DIR: /app/uploads
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env before starting}
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost:5000,http://192.168.100.1:5000}
+    ports:
+      - "${APP_BIND:-0.0.0.0}:${APP_PORT:-5000}:5000"
+    volumes:
+      - uploads-data:/app/uploads
+
+  seed:
+    build: .
+    profiles: ["seed"]
+    depends_on:
+      mongo:
+        condition: service_healthy
+    working_dir: /app/server
+    command: ["node", "seed.js"]
+    environment:
+      MONGO_URI: mongodb://mongo:27017/gyanpunja_quiz
+
+volumes:
+  mongo-data:
+  uploads-data:
