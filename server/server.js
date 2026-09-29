@@ -17,8 +17,7 @@ const {
 } = process.env;
 
 if (!process.env.JWT_SECRET) {
-  console.error('JWT_SECRET is missing. Copy .env.example to .env and set it.');
-  process.exit(1);
+  throw new Error('JWT_SECRET is missing. Copy .env.example to .env and set it.');
 }
 
 const origins = CLIENT_ORIGIN.split(',').map((s) => s.trim());
@@ -59,18 +58,35 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: 'Something went wrong on the server.' });
 });
 
-const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: origins } });
-registerSockets(io);
+let mongoConnection;
 
-mongoose
-  .connect(MONGO_URI)
-  .then(async () => {
+function connectDatabase() {
+  if (mongoose.connection.readyState === 1) return Promise.resolve();
+  if (!mongoConnection) {
+    mongoConnection = mongoose.connect(MONGO_URI).catch((err) => {
+      mongoConnection = null;
+      throw err;
+    });
+  }
+  return mongoConnection;
+}
+
+async function start() {
+  const server = http.createServer(app);
+  const io = new Server(server, { cors: { origin: origins } });
+  registerSockets(io);
+
+  try {
+    await connectDatabase();
     console.log('MongoDB connected');
     await game.init(io);
     server.listen(PORT, '0.0.0.0', () => console.log(`Gyanpunja Quiz server running on port ${PORT}`));
-  })
-  .catch((err) => {
+  } catch (err) {
     console.error('MongoDB connection failed:', err.message);
     process.exit(1);
-  });
+  }
+}
+
+if (require.main === module) start();
+
+module.exports = { app, connectDatabase };
