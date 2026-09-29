@@ -935,6 +935,8 @@ textarea:disabled {
 }
 .question-media img {
   display: block;
+  width: min(100%, 720px);
+  aspect-ratio: 2 / 1;
   max-width: 100%;
   max-height: 360px;
   object-fit: contain;
@@ -945,6 +947,7 @@ textarea:disabled {
   width: min(100%, 480px);
 }
 .question-media-compact img {
+  width: min(100%, 260px);
   max-height: 130px;
 }
 .question-media-compact audio {

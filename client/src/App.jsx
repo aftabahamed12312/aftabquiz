@@ -1,10 +1,12 @@
+import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { homeFor, useAuth } from './AuthContext';
 import Login from './pages/Login';
-import Admin from './pages/Admin';
-import Host from './pages/Host';
-import HouseScreen from './pages/HouseScreen';
-import Display from './pages/Display';
+
+const Admin = lazy(() => import('./pages/Admin'));
+const Host = lazy(() => import('./pages/Host'));
+const HouseScreen = lazy(() => import('./pages/HouseScreen'));
+const Display = lazy(() => import('./pages/Display'));
 
 function Guard({ roles, children }) {
   const { user, loading } = useAuth();
@@ -22,14 +24,16 @@ function Home() {
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      {/* Public, read-only screen for the projector */}
-      <Route path="/display" element={<Display />} />
-      <Route path="/admin" element={<Guard roles={['admin']}><Admin /></Guard>} />
-      <Route path="/host" element={<Guard roles={['admin', 'host']}><Host /></Guard>} />
-      <Route path="/house" element={<Guard roles={['house_leader']}><HouseScreen /></Guard>} />
-      <Route path="*" element={<Home />} />
-    </Routes>
+    <Suspense fallback={<div className="splash">Loading…</div>}>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        {/* Public, read-only screen for the projector */}
+        <Route path="/display" element={<Display />} />
+        <Route path="/admin" element={<Guard roles={['admin']}><Admin /></Guard>} />
+        <Route path="/host" element={<Guard roles={['admin', 'host']}><Host /></Guard>} />
+        <Route path="/house" element={<Guard roles={['house_leader']}><HouseScreen /></Guard>} />
+        <Route path="*" element={<Home />} />
+      </Routes>
+    </Suspense>
   );
 }
