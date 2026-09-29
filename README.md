@@ -50,13 +50,18 @@ Create a Cloudflare Pages project named `aftabquiz`, connect this repository, an
 - Build command: `npm run build`
 - Build output directory: `client/dist`
 - Root directory: repository root (`.`)
+- Deploy command: leave empty for Pages Git integration, or use `npm run deploy`
 
 Set these Pages build environment variables:
 
 - `VITE_API_URL`: the public URL of the persistent Express backend
 - `VITE_SOCKET_URL`: the same backend URL for Socket.IO
 
-Keep the backend and MongoDB on Render, Railway, or a VPS. Cloudflare Pages/Workers cannot provide the persistent Socket.IO server required by the live game. For CLI deployment, authenticate Wrangler with `npx wrangler login`, then run `npm run deploy:cloudflare`.
+Keep the backend and MongoDB on Render, Railway, or a VPS. Cloudflare Pages/Workers cannot provide the persistent Socket.IO server required by the live game. Do not use `npx wrangler deploy`: that is the Workers deploy command and causes the `Missing entry-point to Worker script` error here. For CLI deployment, authenticate Wrangler with `npx wrangler login`, then run `npm run deploy`.
+
+## Deploying the backend on Render
+
+`render.yaml` is a Blueprint for the persistent backend. In Render, create a new Blueprint from this repository and set the generated service's `MONGO_URI` to a MongoDB Atlas connection string. Render generates `JWT_SECRET` automatically. After deployment, copy the backend URL and set it as both `VITE_API_URL` and `VITE_SOCKET_URL` in the Cloudflare Pages project, then redeploy Pages.
 ## Run with Docker
 
 Install Docker Desktop, copy `.env.example` to `.env`, and set a strong secret:

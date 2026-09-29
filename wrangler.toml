@@ -1,8 +1,3 @@
 name = "aftabquiz"
 compatibility_date = "2026-09-29"
 pages_build_output_dir = "client/dist"
-
-[observability.logs]
-enabled = true
-invocation_logs = true
-persist = true
