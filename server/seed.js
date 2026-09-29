@@ -11,6 +11,23 @@ const House = require('./models/House');
 const Question = require('./models/Question');
 const GameState = require('./models/GameState');
 
+const HOUSES = [
+  { name: 'Ruby', color: '#d64550', username: 'ruby', password: 'ruby123' },
+  { name: 'Sapphire', color: '#3478d4', username: 'sapphire', password: 'sapphire123' },
+  { name: 'Emerald', color: '#1f9d6b', username: 'emerald', password: 'emerald123' },
+  { name: 'Amber', color: '#f4a712', username: 'amber', password: 'amber123' },
+];
+
+const QUESTIONS = [
+  ['General Knowledge', 'What is the capital city of France?', 'Paris', 'easy'],
+  ['Science', 'What planet is known as the Red Planet?', 'Mars', 'easy'],
+  ['Mathematics', 'What is 12 multiplied by 8?', '96', 'easy'],
+  ['Geography', 'Which is the largest ocean on Earth?', 'Pacific Ocean', 'medium'],
+  ['History', 'Who was the first person to walk on the Moon?', 'Neil Armstrong', 'medium'],
+  ['Science', 'What gas do plants absorb from the atmosphere?', 'Carbon dioxide', 'medium'],
+  ['Literature', 'Who wrote Romeo and Juliet?', 'William Shakespeare', 'medium'],
+  ['Geography', 'What is the longest river in South America?', 'Amazon River', 'hard'],
+];
 
 
 
