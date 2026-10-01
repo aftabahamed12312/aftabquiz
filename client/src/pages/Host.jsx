@@ -48,7 +48,7 @@ export default function Host() {
     const okStatus =
       statusFilter === 'all' || (statusFilter === 'available' ? q.status !== 'asked' : q.status === statusFilter);
     const okCat = category === 'all' || (q.round?.name || q.category) === category;
-    const okSearch = !search || `${q.questionText} ${q.category}`.toLowerCase().includes(search.toLowerCase());
+    const okSearch = !search || `#${q.questionNumber} ${q.questionNumber} ${q.questionText} ${q.category}`.toLowerCase().includes(search.toLowerCase());
     return okStatus && okCat && okSearch;
   });
 
@@ -346,6 +346,7 @@ export default function Host() {
                   pool.map((item) => (
                     <div key={item._id} className={`pool-item ${item.status}`}>
                       <div className="pool-meta">
+                        <Chip>#{item.questionNumber}</Chip>
                         <Chip>{item.category}</Chip>
                         <Chip kind={item.difficulty}>{item.difficulty}</Chip>
                         {item.status === 'queued' && <Chip kind="queued">Queued</Chip>}

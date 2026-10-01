@@ -320,7 +320,7 @@ function QuestionsTab({ game, notify }) {
   const shown = list.filter(
     (q) =>
       (statusFilter === 'all' || (statusFilter === 'held' ? !q.approved : q.status === statusFilter)) &&
-      (!search || `${q.questionText} ${q.round?.name || q.category} ${q.correctAnswer}`.toLowerCase().includes(search.toLowerCase()))
+      (!search || `#${q.questionNumber} ${q.questionNumber} ${q.questionText} ${q.round?.name || q.category} ${q.correctAnswer}`.toLowerCase().includes(search.toLowerCase()))
   );
 
   return (
@@ -427,6 +427,7 @@ function QuestionsTab({ game, notify }) {
           <table className="tbl">
             <thead>
               <tr>
+                <th>#</th>
                 <th>Category</th>
                 <th>Question</th>
                 <th>Answer</th>
@@ -440,6 +441,7 @@ function QuestionsTab({ game, notify }) {
             <tbody>
               {shown.map((q) => (
                 <tr key={q._id}>
+                  <td>#{q.questionNumber}</td>
                   <td>{q.round?.name || q.category}</td>
                   <td className="wide">
                     {q.questionText}

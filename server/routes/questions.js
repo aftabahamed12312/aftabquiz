@@ -53,13 +53,24 @@ router.get(
   '/',
   requireRole('admin', 'host'),
   asyncHandler(async (req, res) => {
-    const filter = {};
-    if (req.user.role === 'host') filter.approved = true;
-    if (req.query.status) filter.status = req.query.status;
-    if (req.query.category) filter.category = req.query.category;
-    const questions = await Question.find(filter).populate('round').sort({ createdAt: 1 });
-    questions.sort((a, b) => (a.round?.order ?? 9999) - (b.round?.order ?? 9999) || a.createdAt - b.createdAt);
-    res.json(questions);
+    const questions = await Question.find().populate('round').sort({ createdAt: 1 });
+    questions.sort(
+      (a, b) =>
+        (a.round?.order ?? 9999) - (b.round?.order ?? 9999) ||
+        a.createdAt - b.createdAt ||
+        String(a._id).localeCompare(String(b._id))
+    );
+    const numbered = questions.map((question, index) => ({
+      ...question.toObject(),
+      questionNumber: index + 1,
+    }));
+    const visible = numbered.filter(
+      (question) =>
+        (req.user.role !== 'host' || question.approved) &&
+        (!req.query.status || question.status === req.query.status) &&
+        (!req.query.category || question.category === req.query.category)
+    );
+    res.json(visible);
   })
 );
 
