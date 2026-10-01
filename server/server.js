@@ -34,7 +34,7 @@ app.use('/api/houses', require('./routes/houses'));
 app.use('/api/rounds', require('./routes/rounds'));
 app.use('/api/questions', require('./routes/questions'));
 app.use('/api/game', require('./routes/game'));
-app.get('/api/health', (req, res) => res.json({ ok: true }));
+app.use('/api', require('./routes/health'));
 
 // Serve the built React app in production (client/dist)
 const dist = path.join(__dirname, '..', 'client', 'dist');
