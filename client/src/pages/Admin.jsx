@@ -69,17 +69,10 @@ function Overview({ game, notify }) {
   const status = state?.status;
   const qid = state?.question?._id;
   useEffect(() => {
+    if (!status) return;
     api
-      .get('/questions')
-      .then((list) =>
-        setCounts({
-          total: list.length,
-          unused: list.filter((q) => q.status === 'unused').length,
-          queued: list.filter((q) => q.status === 'queued').length,
-          asked: list.filter((q) => q.status === 'asked').length,
-          held: list.filter((q) => !q.approved).length,
-        })
-      )
+      .get('/questions/stats')
+      .then(setCounts)
       .catch(() => {});
   }, [status, qid]);
 
@@ -229,13 +222,12 @@ function QuestionsTab({ game, notify }) {
   const load = useCallback(() => {
     api.get('/questions').then(setList).catch((e) => notify(e.message, 'error'));
   }, [notify]);
-  useEffect(load, [load, status, qid]);
+  useEffect(() => {
+    if (status) load();
+  }, [load, status, qid]);
   const loadRounds = useCallback(() => {
-    api.get('/rounds').then((data) => {
-      setRounds(data);
-      load();
-    }).catch((e) => notify(e.message, 'error'));
-  }, [load, notify]);
+    api.get('/rounds').then(setRounds).catch((e) => notify(e.message, 'error'));
+  }, [notify]);
   useEffect(loadRounds, [loadRounds]);
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });

@@ -27,6 +27,27 @@ const mediaUpload = multer({
   fileFilter: (req, file, cb) => cb(null, allowedMedia.has(file.mimetype)),
 });
 
+router.get(
+  '/stats',
+  requireRole('admin'),
+  asyncHandler(async (req, res) => {
+    const [counts] = await Question.aggregate([
+      {
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          unused: { $sum: { $cond: [{ $eq: ['$status', 'unused'] }, 1, 0] } },
+          queued: { $sum: { $cond: [{ $eq: ['$status', 'queued'] }, 1, 0] } },
+          asked: { $sum: { $cond: [{ $eq: ['$status', 'asked'] }, 1, 0] } },
+          held: { $sum: { $cond: [{ $eq: ['$approved', false] }, 1, 0] } },
+        },
+      },
+      { $project: { _id: 0 } },
+    ]);
+    res.json(counts || { total: 0, unused: 0, queued: 0, asked: 0, held: 0 });
+  })
+);
+
 async function pick(b) {
   const data = {};
   let selectedRound = null;
@@ -53,7 +74,7 @@ router.get(
   '/',
   requireRole('admin', 'host'),
   asyncHandler(async (req, res) => {
-    const questions = await Question.find().populate('round').sort({ createdAt: 1 });
+    const questions = await Question.find().populate('round').sort({ createdAt: 1 }).lean();
     questions.sort(
       (a, b) =>
         (a.round?.order ?? 9999) - (b.round?.order ?? 9999) ||
@@ -61,7 +82,7 @@ router.get(
         String(a._id).localeCompare(String(b._id))
     );
     const numbered = questions.map((question, index) => ({
-      ...question.toObject(),
+      ...question,
       questionNumber: index + 1,
     }));
     const visible = numbered.filter(

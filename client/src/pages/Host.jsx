@@ -31,6 +31,7 @@ export default function Host() {
 
   // Refresh the pool whenever the live question or its status changes
   useEffect(() => {
+    if (!status) return;
     api.get('/questions').then(setQuestions).catch((e) => notify(e.message, 'error'));
   }, [status, qid, notify]);
 
