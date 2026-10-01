@@ -66,6 +66,7 @@ module.exports = function registerSockets(io) {
 
     const staff = ['admin', 'host'];
     on('host:queue', staff, (p) => game.queueQuestion(user, p));
+    on('host:queueBatch', staff, (p) => game.queueBatch(user, p));
     on('host:clear', staff, () => game.clearQuestion(user));
     on('host:present', staff, (p) => game.present(user, p));
     on('host:lock', staff, () => game.lock(user));

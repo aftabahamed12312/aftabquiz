@@ -11,6 +11,7 @@ const gameStateSchema = new mongoose.Schema({
   paused: { type: Boolean, default: false }, // Admin kill-switch
   mode: { type: String, enum: ['house', 'open'], default: 'house' },
   currentQuestion: ref('Question'),
+  questionQueue: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Question' }],
   activeHouse: ref('House'),
   timerDuration: { type: Number, default: 30 },
   timerEndsAt: { type: Date, default: null },

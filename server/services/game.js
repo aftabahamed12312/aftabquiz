@@ -75,6 +75,7 @@ function staffView(gs) {
   return {
     ...baseView(s),
     question: q || null,
+    questionQueue: (s.questionQueue || []).map(idOf),
     submissions: (s.submissions || []).map((x) => ({
       house: houseView(x.house),
       text: x.text,
@@ -207,6 +208,7 @@ async function queueQuestion(actor, { questionId }) {
   if (gs.currentQuestion && gs.status === 'queued') {
     await Question.updateOne({ _id: gs.currentQuestion, status: 'queued' }, { status: 'unused' });
   }
+  gs.questionQueue = (gs.questionQueue || []).filter((queuedId) => idOf(queuedId) !== idOf(q._id));
 
   q.status = 'queued';
   await q.save();
@@ -222,6 +224,56 @@ async function queueQuestion(actor, { questionId }) {
   await pushState();
 }
 
+async function queueBatch(actor, { questionIds } = {}) {
+  const gs = await getRaw();
+  guardPaused(actor, gs);
+  if (!Array.isArray(questionIds) || !questionIds.length) fail('Select at least one question to queue.');
+
+  const pending = gs.questionQueue || [];
+  const alreadyQueued = new Set([...pending.map(idOf), idOf(gs.currentQuestion)]);
+  const ids = [...new Set(questionIds.map(String))].filter((id) => !alreadyQueued.has(id));
+  if (!ids.length) fail('Those questions are already in the queue.');
+  if (ids.length > 100) fail('Queue up to 100 questions at a time.');
+
+  const available = await Question.find({ _id: { $in: ids }, approved: true, status: 'unused' });
+  if (available.length !== ids.length) fail('Some selected questions are unavailable or already queued. Refresh the pool and try again.');
+  const byId = new Map(available.map((question) => [idOf(question), question]));
+  gs.questionQueue = [...pending, ...ids.map((id) => byId.get(id)._id)];
+
+  if (!gs.currentQuestion && gs.status === 'idle') {
+    await advanceQuestionQueue(gs);
+  } else {
+    await gs.save();
+  }
+
+  await log(actor, 'questions_queued', `${ids.length} questions added to the queue`);
+  await pushState();
+}
+
+async function advanceQuestionQueue(gs) {
+  const remaining = [...(gs.questionQueue || [])];
+  let nextQuestion = null;
+
+  while (remaining.length && !nextQuestion) {
+    const questionId = remaining.shift();
+    nextQuestion = await Question.findOne({ _id: questionId, approved: true, status: 'unused' });
+  }
+
+  gs.questionQueue = remaining;
+  gs.currentQuestion = nextQuestion ? nextQuestion._id : null;
+  gs.status = nextQuestion ? 'queued' : 'idle';
+  gs.activeHouse = null;
+  gs.timerEndsAt = null;
+  gs.submissions = [];
+  gs.set('lastResult', undefined);
+
+  if (nextQuestion) {
+    nextQuestion.status = 'queued';
+    await nextQuestion.save();
+  }
+  await gs.save();
+}
+
 /** Drop the current question (queued -> back to pool, or after evaluation -> idle). */
 async function clearQuestion(actor) {
   const gs = await getRaw();
@@ -230,14 +282,8 @@ async function clearQuestion(actor) {
     await Question.updateOne({ _id: gs.currentQuestion, status: 'queued' }, { status: 'unused' });
   }
   clearTimeout(lockTimer);
-  gs.currentQuestion = null;
-  gs.activeHouse = null;
-  gs.status = 'idle';
-  gs.timerEndsAt = null;
-  gs.submissions = [];
-  gs.set('lastResult', undefined);
-  await gs.save();
-  await log(actor, 'question_cleared');
+  await advanceQuestionQueue(gs);
+  await log(actor, gs.currentQuestion ? 'question_queued' : 'question_cleared');
   await pushState();
 }
 
@@ -395,6 +441,7 @@ async function resetGame(actor, { scores = false, questions = false } = {}) {
   gs.paused = false;
   gs.mode = 'house';
   gs.currentQuestion = null;
+  gs.questionQueue = [];
   gs.activeHouse = null;
   gs.timerEndsAt = null;
   gs.submissions = [];
@@ -431,6 +478,7 @@ module.exports = {
   pushScores,
   log,
   queueQuestion,
+  queueBatch,
   clearQuestion,
   present,
   lock,

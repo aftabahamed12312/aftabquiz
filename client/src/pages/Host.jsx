@@ -14,6 +14,7 @@ export default function Host() {
   const [statusFilter, setStatusFilter] = useState('available');
   const [category, setCategory] = useState('all');
   const [search, setSearch] = useState('');
+  const [selectedQuestionIds, setSelectedQuestionIds] = useState([]);
 
   const [targetHouse, setTargetHouse] = useState('');
   const [openFloor, setOpenFloor] = useState(false);
@@ -83,6 +84,15 @@ export default function Host() {
 
   const queue = (item) => act('host:queue', { questionId: item._id }, 'Question queued');
   const returnToPool = () => act('host:clear', {}, 'Question returned to the pool');
+  const queueSelected = async () => {
+    const ok = await act('host:queueBatch', { questionIds: selectedQuestionIds }, `${selectedQuestionIds.length} questions queued`);
+    if (ok) setSelectedQuestionIds([]);
+  };
+  const toggleQuestionSelection = (questionId) => {
+    setSelectedQuestionIds((selected) =>
+      selected.includes(questionId) ? selected.filter((id) => id !== questionId) : [...selected, questionId]
+    );
+  };
   const present = () =>
     act(
       'host:present',
@@ -318,6 +328,24 @@ export default function Host() {
 
             <section className="card">
               <h2 className="card-title">Question pool</h2>
+              <div className="row-between">
+                <span className="muted">Up next: {state.questionQueue?.length || 0}</span>
+                <button className="btn btn-ink btn-sm" disabled={busy || controlsLocked || !selectedQuestionIds.length} onClick={queueSelected}>
+                  Queue selected ({selectedQuestionIds.length})
+                </button>
+              </div>
+              {state.questionQueue?.length > 0 && (
+                <ol className="stack">
+                  {state.questionQueue.map((questionId, index) => {
+                    const queuedQuestion = questions.find((item) => item._id === questionId);
+                    return queuedQuestion ? (
+                      <li key={questionId}>
+                        {index + 1}. #{queuedQuestion.questionNumber} {queuedQuestion.questionText}
+                      </li>
+                    ) : null;
+                  })}
+                </ol>
+              )}
               <div className="filters">
                 <input
                   type="search"
@@ -347,6 +375,16 @@ export default function Host() {
                   pool.map((item) => (
                     <div key={item._id} className={`pool-item ${item.status}`}>
                       <div className="pool-meta">
+                        <label className="check">
+                          <input
+                            type="checkbox"
+                            checked={selectedQuestionIds.includes(item._id)}
+                            disabled={busy || controlsLocked || item.status !== 'unused'}
+                            onChange={() => toggleQuestionSelection(item._id)}
+                            aria-label={`Add question ${item.questionNumber} to upcoming queue`}
+                          />
+                          Select
+                        </label>
                         <Chip>#{item.questionNumber}</Chip>
                         <Chip>{item.category}</Chip>
                         <Chip kind={item.difficulty}>{item.difficulty}</Chip>
