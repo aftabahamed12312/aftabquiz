@@ -11,8 +11,8 @@ export default defineConfig({
       includeAssets: ['icon.svg', 'pwa-180.png', 'pwa-192.png', 'pwa-512.png'],
       manifest: {
         id: '/',
-        name: 'Gyanpunja Quiz',
-        short_name: 'Gyanpunja',
+        name: 'QUIZ',
+        short_name: 'QUIZ',
         description: 'A live, house-wise quiz competition.',
         theme_color: '#173b37',
         background_color: '#142d32',

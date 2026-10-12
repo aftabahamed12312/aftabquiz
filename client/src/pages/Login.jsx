@@ -31,7 +31,7 @@ export default function Login() {
   return (
     <div className="login">
       <div className="login-card">
-        <Brand size="lg" />
+        <Brand size="lg" title="QUIZ" />
         <p className="muted">Super Admins, quiz admins, hosts and house leaders sign in here.</p>
         <form onSubmit={submit} className="stack">
           <label className="field">

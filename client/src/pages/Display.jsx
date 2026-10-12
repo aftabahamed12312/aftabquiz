@@ -33,7 +33,7 @@ export default function Display() {
   if (!tenantSlug || (!selectedTenant && !loadingTenants)) {
     return (
       <div className="display display-chooser">
-        <Brand size="lg" />
+        <Brand size="lg" title={selectedTenant?.title || 'QUIZ'} />
         <div className="card display-chooser-card">
           <h1>{tenantSlug ? 'Quiz not available' : 'Choose a quiz'}</h1>
           <p className="muted">{tenantSlug ? 'This quiz may be inactive or the display link may be incorrect.' : 'Select the quiz whose stage display you want to open.'}</p>
@@ -58,7 +58,7 @@ export default function Display() {
   return (
     <div className="display">
       <header className="display-head">
-        <Brand size="lg" />
+        <Brand size="lg" title={selectedTenant.title} />
         <div className="display-stage">
         {selectedTenant.title} · {state.stage}
           {!connected && <span className="display-offline"> · reconnecting</span>}

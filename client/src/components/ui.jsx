@@ -2,11 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { Download, ExternalLink, LogOut } from 'lucide-react';
 
-export function Brand({ size = 'md' }) {
+export function Brand({ size = 'md', title = 'QUIZ' }) {
   return (
     <div className={`brand brand-${size}`}>
       <img src="/pwa-512.png" alt="" aria-hidden="true" />
-      <span>Gyanpunja Quiz</span>
+      <span>{title}</span>
     </div>
   );
 }
@@ -14,7 +14,7 @@ export function Brand({ size = 'md' }) {
 export function TopBar({ user, onLogout, connected, links = [] }) {
   return (
     <header className="topbar">
-      <Brand />
+      <Brand title={user?.tenant?.title || 'QUIZ'} />
       <nav className="topnav" aria-label="Main">
         {links.map((l) =>
           l.external ? (

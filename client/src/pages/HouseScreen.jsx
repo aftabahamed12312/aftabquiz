@@ -47,7 +47,7 @@ export default function HouseScreen() {
   return (
     <div className="house-screen" style={{ '--house': myHouse?.color || '#f4a712', '--house-ink': inkOn(myHouse?.color) }}>
       <header className="house-head">
-        <Brand />
+        <Brand title={user?.tenant?.title || 'QUIZ'} />
         <div className="topbar-right">
           <span className={`conn on-dark ${connected ? 'on' : ''}`}>
             <i aria-hidden="true" />
