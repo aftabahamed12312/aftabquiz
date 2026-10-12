@@ -1,4 +1,5 @@
 const { AsyncLocalStorage } = require('async_hooks');
+const mongoose = require('mongoose');
 
 const storage = new AsyncLocalStorage();
 
@@ -11,6 +12,10 @@ function runWithTenant(tenantId, callback) {
 }
 
 function tenantScoped(schema) {
+  if (!schema.path('tenantId')) {
+    schema.add({ tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant' } });
+  }
+
   const scopeQuery = function () {
     const tenantId = currentTenantId();
     if (!tenantId) return;
