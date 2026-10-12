@@ -12,12 +12,15 @@ const registerSockets = require('./socket');
 
 const {
   PORT = 5000,
-  MONGO_URI = 'mongodb://127.0.0.1:27017/gyanpunja_quiz',
+  MONGO_URI,
   CLIENT_ORIGIN = 'http://localhost:5173',
 } = process.env;
 
 if (!process.env.JWT_SECRET) {
   throw new Error('JWT_SECRET is missing. Copy .env.example to .env and set it.');
+}
+if (!MONGO_URI) {
+  throw new Error('MONGO_URI is missing. Set it to a reachable MongoDB Atlas connection string.');
 }
 
 const origins = CLIENT_ORIGIN.split(',').map((s) => s.trim());
@@ -29,6 +32,8 @@ fs.mkdirSync(uploads, { recursive: true });
 app.use('/uploads', express.static(uploads, { maxAge: '7d', immutable: true }));
 
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/platform', require('./routes/platform'));
+app.use('/api/tenants', require('./routes/tenants'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/houses', require('./routes/houses'));
 app.use('/api/rounds', require('./routes/rounds'));

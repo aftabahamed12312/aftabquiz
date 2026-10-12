@@ -1,13 +1,56 @@
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { api } from '../api';
 import { useCountdown, useGame } from '../hooks/useGame';
 import { Brand, Chip, HouseDot, Scoreboard, TimerRing } from '../components/ui';
 import QuestionMedia from '../components/QuestionMedia';
 
 /** Public, read-only stage screen for the projector. Never receives the answer before it is revealed. */
 export default function Display() {
-  const { state, scores, connected, offset } = useGame({ display: true });
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tenantSlug = searchParams.get('tenant') || '';
+  const { state, scores, connected, offset, error } = useGame({ display: true, tenantSlug });
+  const [tenants, setTenants] = useState([]);
+  const [loadingTenants, setLoadingTenants] = useState(true);
+  const [tenantListError, setTenantListError] = useState('');
+
+  useEffect(() => {
+    api.get('/tenants/public')
+      .then(setTenants)
+      .catch((fetchError) => setTenantListError(fetchError.message))
+      .finally(() => setLoadingTenants(false));
+  }, []);
+
+  const selectedTenant = tenants.find((tenant) => tenant.slug === tenantSlug);
+  const chooseTenant = (event) => {
+    const slug = event.target.value;
+    setSearchParams(slug ? { tenant: slug } : {});
+  };
   const left = useCountdown(state?.timerEndsAt, state?.status === 'active', offset);
 
-  if (!state) return <div className="display splash-dark">Connecting…</div>;
+  if (loadingTenants) return <div className="display splash-dark">Loading quizzes…</div>;
+  if (tenantListError) return <div className="display splash-dark">{tenantListError}</div>;
+  if (!tenantSlug || (!selectedTenant && !loadingTenants)) {
+    return (
+      <div className="display display-chooser">
+        <Brand size="lg" />
+        <div className="card display-chooser-card">
+          <h1>{tenantSlug ? 'Quiz not available' : 'Choose a quiz'}</h1>
+          <p className="muted">{tenantSlug ? 'This quiz may be inactive or the display link may be incorrect.' : 'Select the quiz whose stage display you want to open.'}</p>
+          <label className="field">
+            <span>Quiz</span>
+            <select value="" onChange={chooseTenant}>
+              <option value="" disabled>Select a quiz</option>
+              {tenants.map((tenant) => <option key={tenant._id} value={tenant.slug}>{tenant.title}</option>)}
+            </select>
+          </label>
+        </div>
+      </div>
+    );
+  }
+  if (!state) {
+    return <div className="display splash-dark">{error || `Connecting to ${selectedTenant.title}…`}</div>;
+  }
 
   const q = state.question;
   const r = state.result;
@@ -17,7 +60,7 @@ export default function Display() {
       <header className="display-head">
         <Brand size="lg" />
         <div className="display-stage">
-          {state.stage}
+        {selectedTenant.title} · {state.stage}
           {!connected && <span className="display-offline"> · reconnecting</span>}
         </div>
       </header>

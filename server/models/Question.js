@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { tenantScoped } = require('../middleware/tenantContext');
 
 // Direct-answer questions (no options). The answer is only a reference for Host/Admin.
 const questionSchema = new mongoose.Schema(
@@ -18,5 +19,7 @@ const questionSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+questionSchema.plugin(tenantScoped);
 
 module.exports = mongoose.model('Question', questionSchema);

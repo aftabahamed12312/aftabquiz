@@ -1,4 +1,4 @@
-# Gyanpunja Quiz
+# Quiz Competition
 
 A house-wise, live quiz competition platform built with **React, Node/Express, MongoDB and Socket.io**.
 
@@ -61,7 +61,9 @@ Keep the backend and MongoDB on Render, Railway, or a VPS. Cloudflare Pages/Work
 
 ## Deploying the backend on Render
 
-`render.yaml` is a Blueprint for the persistent backend. In Render, create a new Blueprint from this repository and set the generated service's `MONGO_URI` to a MongoDB Atlas connection string. Render generates `JWT_SECRET` automatically. After deployment, copy the backend URL and set it as both `VITE_API_URL` and `VITE_SOCKET_URL` in the Cloudflare Pages project, then redeploy Pages.
+`render.yaml` is a Blueprint for the persistent backend. In Render, create a new Blueprint from this repository and set the generated service's `MONGO_URI` to a MongoDB Atlas connection string. The service cannot start without this variable; it must not be left blank or set to `mongodb://127.0.0.1:27017/...`. Render generates `JWT_SECRET` automatically. After deployment, copy the backend URL and set it as both `VITE_API_URL` and `VITE_SOCKET_URL` in the Cloudflare Pages project, then redeploy Pages.
+
+The public `GET /api/health` endpoint can be used by an external uptime monitor to ping the backend every few minutes. A route cannot keep its own sleeping server awake; configure the monitor to request `https://<your-backend-host>/api/health` on a schedule. On Render's free plan, the first request after an instance sleeps may still take time to respond.
 ## Run with Docker
 
 Install Docker Desktop, copy `.env.example` to `.env`, and set a strong secret:
@@ -74,7 +76,7 @@ cp .env.example .env
 Then build and start the app with MongoDB:
 
 ```bash
-docker compose up --build -d
+docker compose up --build -d &&
 docker compose run --rm seed
 ```
 
@@ -82,13 +84,13 @@ Open `http://localhost:5000` on this computer, or `http://192.168.100.2:5000` fr
 
 Admins can manage rounds in **Admin → Question bank**: add, rename, delete, and reorder them, then assign each question to a round. Questions can include an image or audio file (up to 15 MB each) or a media URL. Uploaded media is kept in the Docker `uploads-data` volume and is shown on the Host, house, and stage screens.
 
-Seeded logins (**change these before a real event**, Admin → People → Change password):
+Seeded quiz logins (**change these before a real event**, Admin → People → Change password):
 
 | Username | Password | Role |
 | --- | --- | --- |
 | `admin` | `admin123` | Admin |
 | `host` | `host123` | Host |
-| `ruby` / `sapphire` / `emerald` / `topaz` | `<name>123` | House leader for that house |
+| `ruby` / `sapphire` / `emerald` / `amber` | `<name>123` | House leader for that house |
 
 ### Production (one server)
 
@@ -162,9 +164,16 @@ client/
 
 ## Before you go live
 
+- Change the seeded Super Admin password (`superadmin` / `superadmin123`) before deployment.
 - Change every seeded password and set a strong `JWT_SECRET`.
 - Run a full rehearsal with a laptop for the Host, a phone per house leader, and the projector on `/display`.
 - Put the app behind HTTPS if it is reachable from the internet.
-#   a f t a b q u i z 
- 
- # aftabquiz
+## Quiz tenants and platform administration
+
+The Super Admin signs in at `/login` and is sent to `/platform`. From there they can create a quiz by title and provision its Admin account, view each quiz's status and activity counts, activate or deactivate a quiz, and reset its Admin password. Passwords are hashed and never displayed; the Super Admin can set a new password instead.
+
+Each quiz title is a tenant in the shared MongoDB database. Quiz-owned accounts, houses, rounds, questions, game state, and activity logs are scoped to that tenant, and live socket rooms are tenant-specific. The same username can only be used once across the platform. A tenant Admin manages their quiz's own users and competition, but cannot access or control other tenants. Deactivating a tenant prevents all of its users from logging in or using existing sessions.
+
+The default seed provisions the development Super Admin account `superadmin` / `superadmin123` and the example `Gyanpunja Quiz` tenant. Existing single-quiz data is assigned to that default tenant by rerunning `npm run seed`.
+
+For a tenant-specific public stage display, open `/display` and select the quiz. You can also share its direct URL, `/display?tenant=<quiz-slug>`.

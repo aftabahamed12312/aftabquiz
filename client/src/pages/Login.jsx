@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
+import { LogIn } from 'lucide-react';
 import { homeFor, useAuth } from '../AuthContext';
-import { Brand } from '../components/ui';
+import { Brand, InstallAppButton } from '../components/ui';
 
 export default function Login() {
   const { user, login } = useAuth();
@@ -31,7 +32,7 @@ export default function Login() {
     <div className="login">
       <div className="login-card">
         <Brand size="lg" />
-        <p className="muted">Admins, hosts and house leaders sign in here.</p>
+        <p className="muted">Super Admins, quiz admins, hosts and house leaders sign in here.</p>
         <form onSubmit={submit} className="stack">
           <label className="field">
             <span>Username</span>
@@ -42,11 +43,12 @@ export default function Login() {
             <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
           </label>
           {error && <div className="banner banner-bad" role="alert">{error}</div>}
-          <button className="btn btn-lamp" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
+          <button className="btn btn-lamp" disabled={busy}><LogIn size={17} aria-hidden="true" />{busy ? 'Signing in…' : 'Sign in'}</button>
         </form>
         <a className="login-link" href="/display" target="_blank" rel="noreferrer">
           Open the stage display
         </a>
+        <InstallAppButton />
       </div>
     </div>
   );

@@ -1,17 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink } from 'react-router-dom';
+import { Download, ExternalLink, LogOut } from 'lucide-react';
 
-/* Brand: four house-coloured dots around a small lamp flame ("punja" = a cluster) */
 export function Brand({ size = 'md' }) {
   return (
     <div className={`brand brand-${size}`}>
-      <svg viewBox="0 0 40 40" aria-hidden="true">
-        <circle cx="14" cy="14" r="9" fill="#d1345b" />
-        <circle cx="27" cy="14" r="9" fill="#2f6fdb" />
-        <circle cx="14" cy="27" r="9" fill="#1f9d6b" />
-        <circle cx="27" cy="27" r="9" fill="#e39b12" />
-        <circle cx="20.5" cy="20.5" r="5" fill="#fff7dd" />
-      </svg>
+      <img src="/pwa-512.png" alt="" aria-hidden="true" />
       <span>Gyanpunja Quiz</span>
     </div>
   );
@@ -25,7 +19,7 @@ export function TopBar({ user, onLogout, connected, links = [] }) {
         {links.map((l) =>
           l.external ? (
             <a key={l.to} href={l.to} target="_blank" rel="noreferrer">
-              {l.label}
+              {l.label}<ExternalLink size={14} aria-hidden="true" />
             </a>
           ) : (
             <NavLink key={l.to} to={l.to}>
@@ -35,16 +29,58 @@ export function TopBar({ user, onLogout, connected, links = [] }) {
         )}
       </nav>
       <div className="topbar-right">
-        <span className={`conn ${connected ? 'on' : ''}`}>
-          <i aria-hidden="true" />
-          {connected ? 'Live' : 'Reconnecting'}
-        </span>
+        {connected !== null && (
+          <span className={`conn ${connected ? 'on' : ''}`}>
+            <i aria-hidden="true" />
+            {connected ? 'Live' : 'Reconnecting'}
+          </span>
+        )}
+        <InstallAppButton />
         <span className="who">{user.name}</span>
         <button className="btn btn-ghost btn-sm" onClick={onLogout}>
-          Log out
+          <LogOut size={16} aria-hidden="true" /> Log out
         </button>
       </div>
     </header>
+  );
+}
+
+export function InstallAppButton() {
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [installed, setInstalled] = useState(() =>
+    window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true
+  );
+
+  useEffect(() => {
+    const onInstallPrompt = (event) => {
+      event.preventDefault();
+      setInstallPrompt(event);
+    };
+    const onInstalled = () => {
+      setInstalled(true);
+      setInstallPrompt(null);
+    };
+
+    window.addEventListener('beforeinstallprompt', onInstallPrompt);
+    window.addEventListener('appinstalled', onInstalled);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', onInstallPrompt);
+      window.removeEventListener('appinstalled', onInstalled);
+    };
+  }, []);
+
+  if (installed || !installPrompt) return null;
+
+  const install = async () => {
+    await installPrompt.prompt();
+    const choice = await installPrompt.userChoice;
+    if (choice.outcome === 'accepted') setInstallPrompt(null);
+  };
+
+  return (
+    <button className="btn btn-ghost btn-sm" onClick={install}>
+      <Download size={15} aria-hidden="true" /> Install app
+    </button>
   );
 }
 

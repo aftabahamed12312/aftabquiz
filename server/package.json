@@ -7,7 +7,7 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "seed": "node seed.js",
-    "test": "node test/views.test.js"
+    "test": "node test/views.test.js && node test/tenant-context.test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
+import { LogOut, Send } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { useCountdown, useGame } from '../hooks/useGame';
-import { Brand, Chip, ResultBanner, Scoreboard, StatusPill, TimerRing, Toast, inkOn, useToast } from '../components/ui';
+import { Brand, Chip, InstallAppButton, ResultBanner, Scoreboard, StatusPill, TimerRing, Toast, inkOn, useToast } from '../components/ui';
 import QuestionMedia from '../components/QuestionMedia';
 
 export default function HouseScreen() {
@@ -52,8 +53,9 @@ export default function HouseScreen() {
             <i aria-hidden="true" />
             {connected ? 'Live' : 'Reconnecting'}
           </span>
+          <InstallAppButton />
           <button className="btn btn-ghost-dark btn-sm" onClick={logout}>
-            Log out
+            <LogOut size={15} aria-hidden="true" /> Log out
           </button>
         </div>
       </header>
@@ -110,7 +112,7 @@ export default function HouseScreen() {
               aria-label="Your answer"
             />
             <button className="btn btn-lamp btn-lg" disabled={!state.canAnswer || busy || !text.trim()}>
-              {busy ? 'Sending…' : 'Submit answer'}
+              <Send size={18} aria-hidden="true" /> {busy ? 'Sending…' : 'Submit answer'}
             </button>
           </form>
 

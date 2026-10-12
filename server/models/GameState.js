@@ -1,10 +1,11 @@
 const mongoose = require('mongoose');
+const { tenantScoped } = require('../middleware/tenantContext');
 
 const ref = (model) => ({ type: mongoose.Schema.Types.ObjectId, ref: model, default: null });
 
 // Singleton document (key = 'main') holding the live state of the competition.
 const gameStateSchema = new mongoose.Schema({
-  key: { type: String, default: 'main', unique: true },
+  key: { type: String, default: 'main' },
   stage: { type: String, default: 'Warm-up' },
   // idle -> queued -> active -> (locked) -> evaluated
   status: { type: String, enum: ['idle', 'queued', 'active', 'locked', 'evaluated'], default: 'idle' },
@@ -38,5 +39,8 @@ const gameStateSchema = new mongoose.Schema({
     },
   },
 });
+
+gameStateSchema.plugin(tenantScoped);
+gameStateSchema.index({ tenantId: 1, key: 1 }, { unique: true });
 
 module.exports = mongoose.model('GameState', gameStateSchema);

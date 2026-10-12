@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { tenantScoped } = require('../middleware/tenantContext');
 
 const activityLogSchema = new mongoose.Schema(
   {
@@ -9,5 +10,7 @@ const activityLogSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+activityLogSchema.plugin(tenantScoped);
 
 module.exports = mongoose.model('ActivityLog', activityLogSchema);

@@ -5,7 +5,7 @@ const AuthCtx = createContext(null);
 export const useAuth = () => useContext(AuthCtx);
 
 export const homeFor = (user) =>
-  user.role === 'admin' ? '/admin' : user.role === 'host' ? '/host' : '/house';
+  user.role === 'super_admin' ? '/platform' : user.role === 'admin' ? '/admin' : user.role === 'host' ? '/host' : '/house';
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);

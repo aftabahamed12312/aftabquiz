@@ -7,6 +7,7 @@ const Admin = lazy(() => import('./pages/Admin'));
 const Host = lazy(() => import('./pages/Host'));
 const HouseScreen = lazy(() => import('./pages/HouseScreen'));
 const Display = lazy(() => import('./pages/Display'));
+const Platform = lazy(() => import('./pages/Platform'));
 
 function Guard({ roles, children }) {
   const { user, loading } = useAuth();
@@ -27,6 +28,7 @@ export default function App() {
     <Suspense fallback={<div className="splash">Loading…</div>}>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/platform" element={<Guard roles={['super_admin']}><Platform /></Guard>} />
         {/* Public, read-only screen for the projector */}
         <Route path="/display" element={<Display />} />
         <Route path="/admin" element={<Guard roles={['admin']}><Admin /></Guard>} />

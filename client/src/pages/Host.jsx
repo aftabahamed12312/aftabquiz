@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { ArrowRight, CircleCheck, CircleX, ListPlus, LockKeyhole, Play, RotateCcw, SkipForward } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { api } from '../api';
 import { useCountdown, useGame } from '../hooks/useGame';
@@ -125,7 +126,7 @@ export default function Host() {
         links={[
           ...(user.role === 'admin' ? [{ to: '/admin', label: 'Admin' }] : []),
           { to: '/host', label: 'Host console' },
-          { to: '/display', label: 'Stage display', external: true },
+          { to: user?.tenant?.slug ? `/display?tenant=${encodeURIComponent(user.tenant.slug)}` : '/display', label: 'Stage display', external: true },
         ]}
       />
 
@@ -226,13 +227,15 @@ export default function Host() {
                         disabled={busy || controlsLocked || (!openFloor && !targetHouse)}
                         onClick={present}
                       >
-                        {openFloor
-                          ? 'Open the floor to all houses'
-                          : `${status === 'queued' ? 'Present to' : 'Pass to'} ${targetName || '…'} House`}
+                        {openFloor ? (
+                          <><Play size={18} aria-hidden="true" /> Open the floor to all houses</>
+                        ) : (
+                          <><Play size={18} aria-hidden="true" /> {`${status === 'queued' ? 'Present to' : 'Pass to'} ${targetName || '…'} House`}</>
+                        )}
                       </button>
                       {status === 'queued' && (
                         <button className="btn btn-ghost-dark" disabled={busy || controlsLocked} onClick={returnToPool}>
-                          Return to pool
+                          <RotateCcw size={16} aria-hidden="true" /> Return to pool
                         </button>
                       )}
                     </div>
@@ -246,7 +249,7 @@ export default function Host() {
                       <h3>Judge the answer</h3>
                       {status === 'active' && (
                         <button className="btn btn-ghost-dark btn-sm" disabled={busy} onClick={lockNow}>
-                          Lock answers now
+                          <LockKeyhole size={15} aria-hidden="true" /> Lock answers now
                         </button>
                       )}
                     </div>
@@ -292,17 +295,17 @@ export default function Host() {
                         disabled={busy || controlsLocked || needsAward}
                         onClick={() => evaluate('correct')}
                       >
-                        Correct +{winPoints}
+                        <CircleCheck size={18} aria-hidden="true" /> Correct +{winPoints}
                       </button>
                       <button
                         className="btn btn-bad btn-lg"
                         disabled={busy || controlsLocked || (penalty > 0 && needsAward)}
                         onClick={() => evaluate('wrong')}
                       >
-                        Wrong {penalty > 0 ? `−${penalty}` : '(no penalty)'}
+                        <CircleX size={18} aria-hidden="true" /> Wrong {penalty > 0 ? `−${penalty}` : '(no penalty)'}
                       </button>
                       <button className="btn btn-ghost-dark btn-lg" disabled={busy || controlsLocked} onClick={() => evaluate('skip')}>
-                        No answer
+                        <SkipForward size={18} aria-hidden="true" /> No answer
                       </button>
                     </div>
                   </div>
@@ -311,7 +314,7 @@ export default function Host() {
                 {status === 'evaluated' && (
                   <div className="ctl">
                     <button className="btn btn-lamp btn-lg" disabled={busy || controlsLocked} onClick={next}>
-                      Next question
+                      Next question <ArrowRight size={18} aria-hidden="true" />
                     </button>
                   </div>
                 )}
@@ -397,7 +400,7 @@ export default function Host() {
                         disabled={busy || poolLocked || item.status !== 'unused'}
                         onClick={() => queue(item)}
                       >
-                        {item.status === 'queued' ? 'On stage' : 'Queue'}
+                        <ListPlus size={16} aria-hidden="true" /> {item.status === 'queued' ? 'On stage' : 'Queue'}
                       </button>
                     </div>
                   ))

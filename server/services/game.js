@@ -15,9 +15,11 @@ const GameState = require('../models/GameState');
 const Question = require('../models/Question');
 const House = require('../models/House');
 const ActivityLog = require('../models/ActivityLog');
+const Tenant = require('../models/Tenant');
+const { currentTenantId, runWithTenant } = require('../middleware/tenantContext');
 
 let io = null;
-let lockTimer = null;
+const lockTimers = new Map();
 
 const plain = (obj) => JSON.parse(JSON.stringify(obj));
 const idOf = (x) => (x ? String(x._id || x) : null);
@@ -35,6 +37,7 @@ async function ensureState() {
 }
 
 async function loadState() {
+  await ensureState();
   return GameState.findOne({ key: 'main' })
     .populate({ path: 'currentQuestion', populate: { path: 'round' } })
     .populate('activeHouse', 'name color')
@@ -128,21 +131,25 @@ async function stateFor(user) {
 
 /** Push the latest state to every connected screen, each getting its own view. */
 async function pushState() {
-  if (!io) return;
+  const tenantId = currentTenantId();
+  if (!io || !tenantId) return;
   const gs = await loadState();
-  io.to('staff').emit('state', plain(staffView(gs)));
-  io.to('display').emit('state', plain(publicView(gs, null)));
+  const prefix = `tenant:${tenantId}:`;
+  io.to(`${prefix}staff`).emit('state', plain(staffView(gs)));
+  io.to(`${prefix}display`).emit('state', plain(publicView(gs, null)));
   for (const room of io.sockets.adapter.rooms.keys()) {
-    if (room.startsWith('house:')) {
-      io.to(room).emit('state', plain(publicView(gs, room.slice(6))));
+    const housePrefix = `${prefix}house:`;
+    if (room.startsWith(housePrefix)) {
+      io.to(room).emit('state', plain(publicView(gs, room.slice(housePrefix.length))));
     }
   }
 }
 
 async function pushScores() {
-  if (!io) return;
+  const tenantId = currentTenantId();
+  if (!io || !tenantId) return;
   const houses = await House.find().sort({ score: -1, name: 1 });
-  io.emit('scores', plain(houses.map((h) => ({ _id: h._id, name: h.name, color: h.color, score: h.score }))));
+  io.to(`tenant:${tenantId}`).emit('scores', plain(houses.map((h) => ({ _id: h._id, name: h.name, color: h.color, score: h.score }))));
 }
 
 async function scoresPayload() {
@@ -151,26 +158,41 @@ async function scoresPayload() {
 }
 
 async function log(actor, action, detail = '') {
+  const tenantId = currentTenantId();
+  if (!tenantId) return;
   const entry = await ActivityLog.create({
     actor: actor ? actor.name : 'System',
     role: actor ? actor.role : 'system',
     action,
     detail,
   });
-  if (io) io.to('admin').emit('log', plain(entry));
+  if (io) io.to(`tenant:${tenantId}:admin`).emit('log', plain(entry));
 }
 
 /* ------------------------------------------------------------------ */
 /* Timer                                                                */
 /* ------------------------------------------------------------------ */
 
-function scheduleLock(endsAt) {
-  clearTimeout(lockTimer);
-  const ms = new Date(endsAt).getTime() - Date.now();
-  lockTimer = setTimeout(lockIfExpired, Math.max(ms, 0) + 50);
+function clearTenantTimer() {
+  const tenantId = currentTenantId();
+  if (!tenantId) return;
+  clearTimeout(lockTimers.get(tenantId));
+  lockTimers.delete(tenantId);
 }
 
-async function lockIfExpired() {
+function scheduleLock(endsAt) {
+  const tenantId = currentTenantId();
+  if (!tenantId) return;
+  clearTenantTimer();
+  const ms = new Date(endsAt).getTime() - Date.now();
+  lockTimers.set(tenantId, setTimeout(() => {
+    runWithTenant(tenantId, () => lockIfExpired(tenantId))
+      .catch((err) => console.error('Question timer lock failed:', err.message));
+  }, Math.max(ms, 0) + 50));
+}
+
+async function lockIfExpired(tenantId) {
+  if (!tenantId) return;
   const res = await GameState.updateOne(
     { key: 'main', status: 'active', timerEndsAt: { $lte: new Date() } },
     { $set: { status: 'locked' } }
@@ -281,7 +303,7 @@ async function clearQuestion(actor) {
   if (gs.currentQuestion && gs.status === 'queued') {
     await Question.updateOne({ _id: gs.currentQuestion, status: 'queued' }, { status: 'unused' });
   }
-  clearTimeout(lockTimer);
+  clearTenantTimer();
   await advanceQuestionQueue(gs);
   await log(actor, gs.currentQuestion ? 'question_queued' : 'question_cleared');
   await pushState();
@@ -323,7 +345,7 @@ async function present(actor, { mode = 'house', houseId, duration } = {}) {
 async function lock(actor) {
   const gs = await getRaw();
   if (gs.status !== 'active') fail('There is no live question to lock.');
-  clearTimeout(lockTimer);
+  clearTenantTimer();
   gs.status = 'locked';
   gs.timerEndsAt = new Date();
   await gs.save();
@@ -357,7 +379,7 @@ async function evaluate(actor, { result, houseId, points } = {}) {
     if (delta) await House.updateOne({ _id: house._id }, { $inc: { score: delta } });
   }
 
-  clearTimeout(lockTimer);
+  clearTenantTimer();
   gs.status = 'evaluated';
   gs.timerEndsAt = new Date();
   gs.lastResult = { result, house: house ? house._id : null, points: delta };
@@ -412,7 +434,7 @@ async function setPaused(actor, paused) {
   gs.paused = Boolean(paused);
   // Pausing during a live question freezes it (Host can re-present it after resuming).
   if (gs.paused && gs.status === 'active') {
-    clearTimeout(lockTimer);
+    clearTenantTimer();
     gs.status = 'locked';
     gs.timerEndsAt = new Date();
   }
@@ -436,7 +458,7 @@ async function updateSettings(actor, body = {}) {
 
 async function resetGame(actor, { scores = false, questions = false } = {}) {
   const gs = await getRaw();
-  clearTimeout(lockTimer);
+  clearTenantTimer();
   gs.status = 'idle';
   gs.paused = false;
   gs.mode = 'house';
@@ -464,14 +486,41 @@ async function resetGame(actor, { scores = false, questions = false } = {}) {
 
 async function init(ioServer) {
   io = ioServer;
-  await ensureState();
-  // Recover the timer if the server restarted mid-question
-  const gs = await GameState.findOne({ key: 'main' });
-  if (gs.status === 'active' && gs.timerEndsAt) scheduleLock(gs.timerEndsAt);
+  const tenants = await Tenant.find({ active: true }).select('_id').lean();
+  for (const tenant of tenants) {
+    await runWithTenant(tenant._id, async () => {
+      await ensureState();
+      // Recover the timer if the server restarted mid-question.
+      const gs = await GameState.findOne({ key: 'main' });
+      if (gs.status === 'active' && gs.timerEndsAt) scheduleLock(gs.timerEndsAt);
+    });
+  }
+}
+
+function disconnectTenant(tenantId) {
+  if (io) io.in(`tenant:${tenantId}`).disconnectSockets(true);
+}
+
+function disconnectUser(userId) {
+  if (!io) return;
+  for (const socket of io.sockets.sockets.values()) {
+    if (socket.data.user && idOf(socket.data.user) === String(userId)) socket.disconnect(true);
+  }
+}
+
+async function activateTenant(tenantId) {
+  await runWithTenant(tenantId, async () => {
+    await ensureState();
+    const gs = await GameState.findOne({ key: 'main' });
+    if (gs.status === 'active' && gs.timerEndsAt) scheduleLock(gs.timerEndsAt);
+  });
 }
 
 module.exports = {
   init,
+  activateTenant,
+  disconnectTenant,
+  disconnectUser,
   stateFor,
   scoresPayload,
   pushState,

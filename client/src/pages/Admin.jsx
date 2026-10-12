@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ArrowDown, ArrowUp, Eye, EyeOff, Pencil, Plus, Save, Trash2, Upload } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { api } from '../api';
 import { useCountdown, useGame } from '../hooks/useGame';
@@ -32,7 +33,7 @@ export default function Admin() {
         links={[
           { to: '/admin', label: 'Admin' },
           { to: '/host', label: 'Host console' },
-          { to: '/display', label: 'Stage display', external: true },
+          { to: user?.tenant?.slug ? `/display?tenant=${encodeURIComponent(user.tenant.slug)}` : '/display', label: 'Stage display', external: true },
         ]}
       />
       <main className="page">
@@ -363,7 +364,10 @@ function QuestionsTab({ game, notify }) {
               </label>
             </div>
             <div className="row">
-              <button className="btn btn-lamp" disabled={!rounds.length}>{editingId ? 'Save changes' : 'Add question'}</button>
+              <button className="btn btn-lamp" disabled={!rounds.length}>
+                {editingId ? <Save size={17} aria-hidden="true" /> : <Plus size={17} aria-hidden="true" />}
+                {editingId ? 'Save changes' : 'Add question'}
+              </button>
               {editingId && (
                 <button
                   type="button"
@@ -395,7 +399,7 @@ function QuestionsTab({ game, notify }) {
           />
           <div className="row">
             <button className="btn btn-ink" disabled={!importText.trim()} onClick={runImport}>
-              Import questions
+              <Upload size={16} aria-hidden="true" /> Import questions
             </button>
           </div>
         </section>
@@ -450,14 +454,19 @@ function QuestionsTab({ game, notify }) {
                     {!q.approved && <Chip kind="held">held back</Chip>}
                   </td>
                   <td className="actions">
-                    <button className="btn btn-ghost btn-sm" onClick={() => toggleApprove(q)}>
-                      {q.approved ? 'Hold back' : 'Approve'}
+                    <button
+                      className="btn btn-ghost btn-sm btn-icon"
+                      onClick={() => toggleApprove(q)}
+                      title={q.approved ? 'Hold back' : 'Approve'}
+                      aria-label={q.approved ? 'Hold back question' : 'Approve question'}
+                    >
+                      {q.approved ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
                     </button>
-                    <button className="btn btn-ghost btn-sm" onClick={() => edit(q)}>
-                      Edit
+                    <button className="btn btn-ghost btn-sm btn-icon" onClick={() => edit(q)} title="Edit question" aria-label="Edit question">
+                      <Pencil aria-hidden="true" />
                     </button>
-                    <button className="btn btn-ghost btn-sm danger" onClick={() => remove(q)}>
-                      Delete
+                    <button className="btn btn-ghost btn-sm btn-icon danger" onClick={() => remove(q)} title="Delete question" aria-label="Delete question">
+                      <Trash2 aria-hidden="true" />
                     </button>
                   </td>
                 </tr>
@@ -531,8 +540,8 @@ function RoundsManager({ rounds, reload, notify }) {
           {rounds.map((round, index) => (
             <li key={round._id}>
               <b>{index + 1}.</b><span className="grow">{round.name}</span>
-              <button className="btn btn-ghost btn-sm" disabled={index === 0} onClick={() => move(index, -1)} aria-label={`Move ${round.name} up`}>↑</button>
-              <button className="btn btn-ghost btn-sm" disabled={index === rounds.length - 1} onClick={() => move(index, 1)} aria-label={`Move ${round.name} down`}>↓</button>
+              <button className="btn btn-ghost btn-sm btn-icon" disabled={index === 0} onClick={() => move(index, -1)} aria-label={`Move ${round.name} up`} title="Move up"><ArrowUp aria-hidden="true" /></button>
+              <button className="btn btn-ghost btn-sm btn-icon" disabled={index === rounds.length - 1} onClick={() => move(index, 1)} aria-label={`Move ${round.name} down`} title="Move down"><ArrowDown aria-hidden="true" /></button>
               <button className="btn btn-ghost btn-sm" onClick={() => { setEditingId(round._id); setName(round.name); }}>Rename</button>
               <button className="btn btn-ghost btn-sm danger" onClick={() => remove(round)}>Delete</button>
             </li>
@@ -658,7 +667,7 @@ function HouseRow({ house, notify }) {
           Set score to this
         </button>
         <button className="btn btn-ghost btn-sm danger push" aria-label={`Delete ${house.name} House`} onClick={remove}>
-          Delete
+          <Trash2 size={15} aria-hidden="true" /> Delete
         </button>
       </div>
     </article>
