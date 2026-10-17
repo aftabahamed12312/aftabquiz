@@ -16,7 +16,7 @@ async function request(path, { method = 'GET', body } = {}) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err = new Error(data.message || 'Request failed.');
+    const err = new Error(data.message || `Request failed (HTTP ${res.status}).`);
     err.status = res.status;
     throw err;
   }
@@ -38,7 +38,7 @@ export const api = {
       body: form,
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.message || 'Upload failed.');
+    if (!res.ok) throw new Error(data.message || `Upload failed (HTTP ${res.status}).`);
     return data;
   },
 };

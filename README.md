@@ -35,7 +35,9 @@ The repository's `vercel.json` builds the React app as a static site and serves 
    - `CLIENT_ORIGIN`: your deployed app origin, such as `https://your-project.vercel.app`.
 4. Remove any old `VITE_API_URL` or `VITE_SOCKET_URL` values from Vercel, then deploy. The frontend and API share the deployment origin.
 
-Uploaded images and audio are persisted in MongoDB GridFS and are limited to 4 MB per file to fit serverless request limits. Larger media can be hosted externally and added by URL. Existing MongoDB documents and accounts are retained; existing media files from a local `uploads` folder are not migrated automatically and must be re-uploaded or moved into GridFS. Run `npm run seed` only if you need to initialize or update the default tenant.
+For a new production database, run the seed script once against the same `MONGO_URI` used by the deployed service: set `MONGO_URI` in your local environment to the production MongoDB Atlas connection string, then run `npm run seed` from the repository root. This creates the first login accounts (`admin` / `admin123`, `host` / `host123`, and `superadmin` / `superadmin123`). Change those passwords immediately after signing in. Do not run this against an existing production database unless you intend to add any missing seeded accounts.
+
+Uploaded images and audio are persisted in MongoDB GridFS and are limited to 4 MB per file to fit serverless request limits. Larger media can be hosted externally and added by URL. Existing MongoDB documents and accounts are retained; existing media files from a local `uploads` folder are not migrated automatically and must be re-uploaded or moved into GridFS.
 ## Run with Docker
 
 Install Docker Desktop, copy `.env.example` to `.env`, and set a strong secret:
