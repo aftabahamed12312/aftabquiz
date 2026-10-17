@@ -23,7 +23,6 @@ COPY server/middleware ./server/middleware
 COPY server/models ./server/models
 COPY server/routes ./server/routes
 COPY server/services ./server/services
-COPY server/socket ./server/socket
 COPY server/utils ./server/utils
 COPY --from=client-builder /app/client/dist ./client/dist
 RUN mkdir -p /app/uploads
