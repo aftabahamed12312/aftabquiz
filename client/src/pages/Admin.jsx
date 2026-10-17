@@ -339,12 +339,12 @@ function QuestionsTab({ game, notify }) {
               <input value={form.correctAnswer} onChange={set('correctAnswer')} required />
             </label>
             <label className="field">
-              <span>Image URL or upload (15 MB max)</span>
+              <span>Image URL or upload (4 MB max)</span>
               <input type="text" value={form.imageUrl} onChange={set('imageUrl')} placeholder="https://… or /uploads/…" />
               <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(e) => uploadMedia('imageUrl', e.target.files?.[0])} />
             </label>
             <label className="field">
-              <span>Audio URL or upload (15 MB max)</span>
+              <span>Audio URL or upload (4 MB max)</span>
               <input type="text" value={form.audioUrl} onChange={set('audioUrl')} placeholder="https://… or /uploads/…" />
               <input type="file" accept="audio/mpeg,audio/mp4,audio/wav,audio/x-wav,audio/ogg,audio/webm,audio/aac" onChange={(e) => uploadMedia('audioUrl', e.target.files?.[0])} />
             </label>
@@ -914,20 +914,28 @@ function SettingsTab({ game, notify }) {
 /* ================================================================== */
 /* Activity log (live)                                                  */
 /* ================================================================== */
-function LogTab({ game, notify }) {
-  const { socket } = game;
+function LogTab({ notify }) {
   const [logs, setLogs] = useState([]);
 
   useEffect(() => {
-    api.get('/game/logs').then(setLogs).catch((e) => notify(e.message, 'error'));
+    let stopped = false;
+    let timer;
+    const refresh = async () => {
+      try {
+        const current = await api.get('/game/logs');
+        if (!stopped) setLogs(current);
+      } catch (error) {
+        if (!stopped) notify(error.message, 'error');
+      } finally {
+        if (!stopped) timer = setTimeout(refresh, 5000);
+      }
+    };
+    refresh();
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
   }, [notify]);
-
-  useEffect(() => {
-    if (!socket) return undefined;
-    const onLog = (entry) => setLogs((l) => [entry, ...l].slice(0, 100));
-    socket.on('log', onLog);
-    return () => socket.off('log', onLog);
-  }, [socket]);
 
   const label = (a) => a.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
 

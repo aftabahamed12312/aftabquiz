@@ -15,17 +15,13 @@ const GameState = require('../models/GameState');
 const Question = require('../models/Question');
 const House = require('../models/House');
 const ActivityLog = require('../models/ActivityLog');
-const Tenant = require('../models/Tenant');
-const { currentTenantId, runWithTenant } = require('../middleware/tenantContext');
-
-let io = null;
-const lockTimers = new Map();
+const { currentTenantId } = require('../middleware/tenantContext');
 
 const plain = (obj) => JSON.parse(JSON.stringify(obj));
 const idOf = (x) => (x ? String(x._id || x) : null);
 const isNum = (n) => n !== '' && n !== null && n !== undefined && Number.isFinite(Number(n));
 const fail = (msg) => {
-  throw new Error(msg);
+  throw Object.assign(new Error(msg), { status: 400 });
 };
 
 /* ------------------------------------------------------------------ */
@@ -121,35 +117,12 @@ function publicView(gs, houseId) {
   };
 }
 
-/** Initial state for a freshly connected socket. */
+/** Role-filtered snapshot for one authenticated user or the public display. */
 async function stateFor(user) {
-  const gs = await loadState();
+  const gs = await lockIfExpired(await loadState());
   if (!user) return plain(publicView(gs, null));
   if (user.role === 'admin' || user.role === 'host') return plain(staffView(gs));
   return plain(publicView(gs, idOf(user.house)));
-}
-
-/** Push the latest state to every connected screen, each getting its own view. */
-async function pushState() {
-  const tenantId = currentTenantId();
-  if (!io || !tenantId) return;
-  const gs = await loadState();
-  const prefix = `tenant:${tenantId}:`;
-  io.to(`${prefix}staff`).emit('state', plain(staffView(gs)));
-  io.to(`${prefix}display`).emit('state', plain(publicView(gs, null)));
-  for (const room of io.sockets.adapter.rooms.keys()) {
-    const housePrefix = `${prefix}house:`;
-    if (room.startsWith(housePrefix)) {
-      io.to(room).emit('state', plain(publicView(gs, room.slice(housePrefix.length))));
-    }
-  }
-}
-
-async function pushScores() {
-  const tenantId = currentTenantId();
-  if (!io || !tenantId) return;
-  const houses = await House.find().sort({ score: -1, name: 1 });
-  io.to(`tenant:${tenantId}`).emit('scores', plain(houses.map((h) => ({ _id: h._id, name: h.name, color: h.color, score: h.score }))));
 }
 
 async function scoresPayload() {
@@ -160,44 +133,26 @@ async function scoresPayload() {
 async function log(actor, action, detail = '') {
   const tenantId = currentTenantId();
   if (!tenantId) return;
-  const entry = await ActivityLog.create({
+  await ActivityLog.create({
     actor: actor ? actor.name : 'System',
     role: actor ? actor.role : 'system',
     action,
     detail,
   });
-  if (io) io.to(`tenant:${tenantId}:admin`).emit('log', plain(entry));
 }
 
-/* ------------------------------------------------------------------ */
-/* Timer                                                                */
-/* ------------------------------------------------------------------ */
-
-function clearTenantTimer() {
-  const tenantId = currentTenantId();
-  if (!tenantId) return;
-  clearTimeout(lockTimers.get(tenantId));
-  lockTimers.delete(tenantId);
-}
-
-function scheduleLock(endsAt) {
-  const tenantId = currentTenantId();
-  if (!tenantId) return;
-  clearTenantTimer();
-  const ms = new Date(endsAt).getTime() - Date.now();
-  lockTimers.set(tenantId, setTimeout(() => {
-    runWithTenant(tenantId, () => lockIfExpired(tenantId))
-      .catch((err) => console.error('Question timer lock failed:', err.message));
-  }, Math.max(ms, 0) + 50));
-}
-
-async function lockIfExpired(tenantId) {
-  if (!tenantId) return;
+async function lockIfExpired(gs) {
+  const now = new Date();
+  if (gs.status !== 'active' || !gs.timerEndsAt || gs.timerEndsAt > now) return gs;
   const res = await GameState.updateOne(
-    { key: 'main', status: 'active', timerEndsAt: { $lte: new Date() } },
+    { key: 'main', status: 'active', timerEndsAt: { $lte: now } },
     { $set: { status: 'locked' } }
   );
-  if (res.modifiedCount) await pushState();
+  if (res.modifiedCount) {
+    gs.status = 'locked';
+    return gs;
+  }
+  return loadState();
 }
 
 /* ------------------------------------------------------------------ */
@@ -243,7 +198,6 @@ async function queueQuestion(actor, { questionId }) {
   await gs.save();
 
   await log(actor, 'question_queued', `[${q.category}] ${q.questionText}`);
-  await pushState();
 }
 
 async function queueBatch(actor, { questionIds } = {}) {
@@ -269,7 +223,6 @@ async function queueBatch(actor, { questionIds } = {}) {
   }
 
   await log(actor, 'questions_queued', `${ids.length} questions added to the queue`);
-  await pushState();
 }
 
 async function advanceQuestionQueue(gs) {
@@ -303,10 +256,8 @@ async function clearQuestion(actor) {
   if (gs.currentQuestion && gs.status === 'queued') {
     await Question.updateOne({ _id: gs.currentQuestion, status: 'queued' }, { status: 'unused' });
   }
-  clearTenantTimer();
   await advanceQuestionQueue(gs);
   await log(actor, gs.currentQuestion ? 'question_queued' : 'question_cleared');
-  await pushState();
 }
 
 async function present(actor, { mode = 'house', houseId, duration } = {}) {
@@ -336,21 +287,17 @@ async function present(actor, { mode = 'house', houseId, duration } = {}) {
   await gs.save();
 
   await Question.updateOne({ _id: gs.currentQuestion }, { status: 'asked', askedAt: new Date() });
-  scheduleLock(gs.timerEndsAt);
 
   await log(actor, 'question_presented', house ? `To ${house.name} (${secs}s)` : `Open floor (${secs}s)`);
-  await pushState();
 }
 
 async function lock(actor) {
   const gs = await getRaw();
   if (gs.status !== 'active') fail('There is no live question to lock.');
-  clearTenantTimer();
   gs.status = 'locked';
   gs.timerEndsAt = new Date();
   await gs.save();
   await log(actor, 'question_locked');
-  await pushState();
 }
 
 async function evaluate(actor, { result, houseId, points } = {}) {
@@ -379,7 +326,6 @@ async function evaluate(actor, { result, houseId, points } = {}) {
     if (delta) await House.updateOne({ _id: house._id }, { $inc: { score: delta } });
   }
 
-  clearTenantTimer();
   gs.status = 'evaluated';
   gs.timerEndsAt = new Date();
   gs.lastResult = { result, house: house ? house._id : null, points: delta };
@@ -387,8 +333,6 @@ async function evaluate(actor, { result, houseId, points } = {}) {
 
   const who = house ? house.name : 'no house';
   await log(actor, 'answer_evaluated', `${result} - ${who}${delta ? ` (${delta > 0 ? '+' : ''}${delta})` : ''}`);
-  await pushState();
-  await pushScores();
 }
 
 /* ------------------------------------------------------------------ */
@@ -422,7 +366,6 @@ async function submitAnswer(user, { text } = {}) {
   if (!res.modifiedCount) fail('Your answer was already submitted, or time is up.');
 
   await log(user, 'answer_submitted', answer);
-  await pushState();
 }
 
 /* ------------------------------------------------------------------ */
@@ -434,13 +377,11 @@ async function setPaused(actor, paused) {
   gs.paused = Boolean(paused);
   // Pausing during a live question freezes it (Host can re-present it after resuming).
   if (gs.paused && gs.status === 'active') {
-    clearTenantTimer();
     gs.status = 'locked';
     gs.timerEndsAt = new Date();
   }
   await gs.save();
   await log(actor, gs.paused ? 'competition_paused' : 'competition_resumed');
-  await pushState();
 }
 
 async function updateSettings(actor, body = {}) {
@@ -453,12 +394,10 @@ async function updateSettings(actor, body = {}) {
   }
   await gs.save();
   await log(actor, 'settings_updated', `Stage: ${gs.stage}`);
-  await pushState();
 }
 
 async function resetGame(actor, { scores = false, questions = false } = {}) {
   const gs = await getRaw();
-  clearTenantTimer();
   gs.status = 'idle';
   gs.paused = false;
   gs.mode = 'house';
@@ -476,55 +415,11 @@ async function resetGame(actor, { scores = false, questions = false } = {}) {
   if (scores) await House.updateMany({}, { score: 0 });
 
   await log(actor, 'game_reset', `scores: ${scores ? 'reset' : 'kept'}, questions: ${questions ? 'reset' : 'kept'}`);
-  await pushState();
-  await pushScores();
-}
-
-/* ------------------------------------------------------------------ */
-/* Boot                                                                 */
-/* ------------------------------------------------------------------ */
-
-async function init(ioServer) {
-  io = ioServer;
-  const tenants = await Tenant.find({ active: true }).select('_id').lean();
-  for (const tenant of tenants) {
-    await runWithTenant(tenant._id, async () => {
-      await ensureState();
-      // Recover the timer if the server restarted mid-question.
-      const gs = await GameState.findOne({ key: 'main' });
-      if (gs.status === 'active' && gs.timerEndsAt) scheduleLock(gs.timerEndsAt);
-    });
-  }
-}
-
-function disconnectTenant(tenantId) {
-  if (io) io.in(`tenant:${tenantId}`).disconnectSockets(true);
-}
-
-function disconnectUser(userId) {
-  if (!io) return;
-  for (const socket of io.sockets.sockets.values()) {
-    if (socket.data.user && idOf(socket.data.user) === String(userId)) socket.disconnect(true);
-  }
-}
-
-async function activateTenant(tenantId) {
-  await runWithTenant(tenantId, async () => {
-    await ensureState();
-    const gs = await GameState.findOne({ key: 'main' });
-    if (gs.status === 'active' && gs.timerEndsAt) scheduleLock(gs.timerEndsAt);
-  });
 }
 
 module.exports = {
-  init,
-  activateTenant,
-  disconnectTenant,
-  disconnectUser,
   stateFor,
   scoresPayload,
-  pushState,
-  pushScores,
   log,
   queueQuestion,
   queueBatch,

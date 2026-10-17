@@ -5,10 +5,6 @@ const http = require('http');
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
-const { Server } = require('socket.io');
-
-const game = require('./services/game');
-const registerSockets = require('./socket');
 
 const {
   PORT = 5000,
@@ -27,10 +23,9 @@ const origins = CLIENT_ORIGIN.split(',').map((s) => s.trim());
 const app = express();
 app.use(cors({ origin: origins }));
 app.use(express.json({ limit: '1mb' }));
-const uploads = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
-fs.mkdirSync(uploads, { recursive: true });
-app.use('/uploads', express.static(uploads, { maxAge: '7d', immutable: true }));
 
+app.use('/api/media', require('./routes/media'));
+app.use('/uploads', require('./routes/media'));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/platform', require('./routes/platform'));
 app.use('/api/tenants', require('./routes/tenants'));
@@ -67,8 +62,13 @@ let mongoConnection;
 
 function connectDatabase() {
   if (mongoose.connection.readyState === 1) return Promise.resolve();
+  if (mongoose.connection.readyState === 0) mongoConnection = null;
   if (!mongoConnection) {
-    mongoConnection = mongoose.connect(MONGO_URI).catch((err) => {
+    mongoConnection = mongoose.connect(MONGO_URI, {
+      maxPoolSize: 10,
+      minPoolSize: 0,
+      serverSelectionTimeoutMS: 10000,
+    }).catch((err) => {
       mongoConnection = null;
       throw err;
     });
@@ -78,13 +78,10 @@ function connectDatabase() {
 
 async function start() {
   const server = http.createServer(app);
-  const io = new Server(server, { cors: { origin: origins } });
-  registerSockets(io);
 
   try {
     await connectDatabase();
     console.log('MongoDB connected');
-    await game.init(io);
     server.listen(PORT, '0.0.0.0', () => console.log(`Gyanpunja Quiz server running on port ${PORT}`));
   } catch (err) {
     console.error('MongoDB connection failed:', err.message);

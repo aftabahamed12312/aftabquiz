@@ -51,7 +51,7 @@ export default function HouseScreen() {
         <div className="topbar-right">
           <span className={`conn on-dark ${connected ? 'on' : ''}`}>
             <i aria-hidden="true" />
-            {connected ? 'Live' : 'Reconnecting'}
+            {connected ? 'Online' : 'Reconnecting'}
           </span>
           <InstallAppButton />
           <button className="btn btn-ghost-dark btn-sm" onClick={logout}>

@@ -6,7 +6,7 @@ const { runWithTenant } = require('./tenantContext');
 const signToken = (user) =>
   jwt.sign({ id: user._id, version: user.tokenVersion || 0 }, process.env.JWT_SECRET, { expiresIn: '12h' });
 
-// Used by both REST and Socket.io
+// Used by the REST API.
 async function verifyToken(token) {
   const { id, version = 0 } = jwt.verify(token, process.env.JWT_SECRET);
   const user = await User.findById(id);

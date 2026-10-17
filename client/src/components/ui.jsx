@@ -32,7 +32,7 @@ export function TopBar({ user, onLogout, connected, links = [] }) {
         {connected !== null && (
           <span className={`conn ${connected ? 'on' : ''}`}>
             <i aria-hidden="true" />
-            {connected ? 'Live' : 'Reconnecting'}
+            {connected ? 'Online' : 'Reconnecting'}
           </span>
         )}
         <InstallAppButton />

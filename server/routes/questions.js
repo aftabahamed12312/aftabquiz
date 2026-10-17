@@ -5,25 +5,20 @@ const { auth, requireRole } = require('../middleware/auth');
 const game = require('../services/game');
 const Round = require('../models/Round');
 const multer = require('multer');
-const fs = require('fs');
-const path = require('path');
+const mongoose = require('mongoose');
+const { Readable } = require('stream');
 const crypto = require('crypto');
 
 router.use(auth);
 
-const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, '..', 'uploads');
-fs.mkdirSync(uploadDir, { recursive: true });
 const allowedMedia = new Map([
   ['image/jpeg', '.jpg'], ['image/png', '.png'], ['image/webp', '.webp'], ['image/gif', '.gif'],
   ['audio/mpeg', '.mp3'], ['audio/mp4', '.m4a'], ['audio/wav', '.wav'], ['audio/x-wav', '.wav'],
   ['audio/ogg', '.ogg'], ['audio/webm', '.webm'], ['audio/aac', '.aac'],
 ]);
 const mediaUpload = multer({
-  storage: multer.diskStorage({
-    destination: uploadDir,
-    filename: (req, file, cb) => cb(null, `${crypto.randomUUID()}${allowedMedia.get(file.mimetype) || ''}`),
-  }),
-  limits: { fileSize: 15 * 1024 * 1024 },
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 4 * 1024 * 1024 },
   fileFilter: (req, file, cb) => cb(null, allowedMedia.has(file.mimetype)),
 });
 
@@ -99,12 +94,19 @@ router.post('/media', requireRole('admin'), (req, res, next) => {
   mediaUpload.single('file')(req, res, (err) => {
     if (err) {
       if (err instanceof multer.MulterError) {
-        return res.status(err.code === 'LIMIT_FILE_SIZE' ? 413 : 400).json({ message: 'Upload failed. Images and audio must be supported files no larger than 15 MB.' });
+        return res.status(err.code === 'LIMIT_FILE_SIZE' ? 413 : 400).json({ message: 'Upload failed. Images and audio must be supported files no larger than 4 MB.' });
       }
       return next(err);
     }
-    if (!req.file) return res.status(400).json({ message: 'Choose a supported image or audio file (maximum 15 MB).' });
-    res.status(201).json({ url: `/uploads/${req.file.filename}` });
+    if (!req.file) return res.status(400).json({ message: 'Choose a supported image or audio file (maximum 4 MB).' });
+    const file = req.file;
+    const upload = new mongoose.mongo.GridFSBucket(mongoose.connection.db, { bucketName: 'media' })
+      .openUploadStream(`${crypto.randomUUID()}${allowedMedia.get(file.mimetype)}`, {
+        metadata: { contentType: file.mimetype },
+      });
+    upload.once('error', next);
+    upload.once('finish', () => res.status(201).json({ url: `/uploads/${upload.id}` }));
+    Readable.from([file.buffer]).pipe(upload);
   });
 });
 

@@ -7,7 +7,6 @@ const Question = require('../models/Question');
 const ActivityLog = require('../models/ActivityLog');
 const asyncHandler = require('../utils/asyncHandler');
 const { auth, requireRole } = require('../middleware/auth');
-const game = require('../services/game');
 
 router.use(auth, requireRole('super_admin'));
 
@@ -48,7 +47,6 @@ router.patch(
     user.password = password;
     user.tokenVersion += 1;
     await user.save();
-    game.disconnectUser(user._id);
     res.json({ ok: true });
   })
 );
@@ -114,8 +112,6 @@ router.patch(
       { new: true, runValidators: true }
     );
     if (!tenant) return res.status(404).json({ message: 'Quiz not found.' });
-    if (!tenant.active) game.disconnectTenant(tenant._id);
-    else await game.activateTenant(tenant._id);
     const admin = tenant.admin ? await User.findById(tenant.admin).select('name username') : null;
     res.json(tenantView(tenant, await countsFor(tenant._id), admin));
   })
@@ -135,7 +131,6 @@ router.post(
     admin.password = password;
     admin.tokenVersion += 1;
     await admin.save();
-    game.disconnectUser(admin._id);
     res.json({ ok: true });
   })
 );

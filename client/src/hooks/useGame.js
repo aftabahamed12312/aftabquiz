@@ -1,24 +1,34 @@
 import { useCallback, useEffect, useState } from 'react';
-import { io } from 'socket.io-client';
-import { getToken } from '../api';
+import { api } from '../api';
 import { useAuth } from '../AuthContext';
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || '';
+const POLL_INTERVAL = 2000;
+const HIDDEN_POLL_INTERVAL = 10000;
 
 /**
- * Connects to the live game.
- * - Staff / house leaders authenticate with their token.
- * - The stage display passes { display: true } and only receives public data.
- * `state` is already filtered by the server for this role.
+ * Refreshes the persisted game snapshot and sends actions through the REST API.
+ * The server filters `state` by role before returning it.
  */
 export function useGame({ display = false, tenantSlug = '' } = {}) {
   const { logout } = useAuth();
-  const [socket, setSocket] = useState(null);
   const [state, setState] = useState(null);
   const [scores, setScores] = useState([]);
   const [connected, setConnected] = useState(false);
-  const [offset, setOffset] = useState(0); // server clock minus local clock (ms)
+  const [offset, setOffset] = useState(0);
   const [error, setError] = useState('');
+
+  const refresh = useCallback(async () => {
+    const path = display
+      ? `/game/public/${encodeURIComponent(tenantSlug)}/snapshot`
+      : '/game/snapshot';
+    const snapshot = await api.get(path);
+    setOffset((snapshot.state.serverNow || Date.now()) - Date.now());
+    setState(snapshot.state);
+    setScores(snapshot.scores);
+    setConnected(true);
+    setError('');
+    return snapshot;
+  }, [display, tenantSlug]);
 
   useEffect(() => {
     setState(null);
@@ -28,45 +38,52 @@ export function useGame({ display = false, tenantSlug = '' } = {}) {
       setConnected(false);
       return undefined;
     }
-    const opts = { auth: display ? { display: true, tenant: tenantSlug } : { token: getToken() } };
-    const s = SOCKET_URL ? io(SOCKET_URL, opts) : io(opts);
-    setSocket(s);
 
-    s.on('connect', () => { setConnected(true); setError(''); });
-    s.on('disconnect', () => setConnected(false));
-    s.on('connect_error', (err) => {
-      if (err.message === 'Unauthorized' && !display) {
-        s.disconnect();
-        logout();
-      } else setError(err.message || 'Unable to connect to the quiz.');
-    });
-    s.on('state', (st) => {
-      setOffset(st.serverNow - Date.now());
-      setState(st);
-    });
-    s.on('scores', setScores);
+    let stopped = false;
+    let timer;
+    const poll = async () => {
+      if (stopped) return;
+      if (document.visibilityState === 'hidden') {
+        timer = setTimeout(poll, HIDDEN_POLL_INTERVAL);
+        return;
+      }
 
-    return () => {
-      s.removeAllListeners();
-      s.disconnect();
+      try {
+        await refresh();
+      } catch (fetchError) {
+        if (!stopped) {
+          setConnected(false);
+          setError(fetchError.message || 'Unable to connect to the quiz.');
+          if (fetchError.status === 401 && !display) {
+            logout();
+            return;
+          }
+        }
+      }
+
+      if (!stopped) timer = setTimeout(poll, POLL_INTERVAL);
     };
-  }, [display, logout, tenantSlug]);
 
-  /** Send a game event and wait for the server's ack. Rejects with a readable message. */
-  const emit = useCallback(
-    (event, payload = {}) =>
-      new Promise((resolve, reject) => {
-        if (!socket) return reject(new Error('Not connected yet.'));
-        socket.timeout(8000).emit(event, payload, (err, res) => {
-          if (err) return reject(new Error('The server did not respond. Check your connection.'));
-          if (res && res.ok) return resolve(res);
-          reject(new Error((res && res.error) || 'Something went wrong.'));
-        });
-      }),
-    [socket]
-  );
+    poll();
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
+  }, [display, logout, refresh, tenantSlug]);
 
-  return { socket, state, scores, connected, offset, error, emit };
+  const emit = useCallback(async (event, payload = {}) => {
+    const result = await api.post('/game/actions', { event, payload });
+    try {
+      await refresh();
+    } catch (fetchError) {
+      setConnected(false);
+      setError(fetchError.message || 'Unable to refresh the quiz.');
+      if (fetchError.status === 401 && !display) logout();
+    }
+    return result;
+  }, [display, logout, refresh]);
+
+  return { state, scores, connected, offset, error, emit };
 }
 
 /** Whole seconds left until `endsAt`, corrected for server clock offset. */

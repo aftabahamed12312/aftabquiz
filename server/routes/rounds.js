@@ -58,7 +58,6 @@ router.patch('/:id', asyncHandler(async (req, res) => {
   if (!round) return res.status(404).json({ message: 'Round not found.' });
   await Question.updateMany({ round: round._id }, { $set: { category: round.name } });
   await game.log(req.user, 'round_renamed', round.name);
-  await game.pushState();
   res.json(round);
 }));
 
@@ -67,7 +66,6 @@ router.delete('/:id', asyncHandler(async (req, res) => {
   if (!round) return res.status(404).json({ message: 'Round not found.' });
   await Question.updateMany({ round: round._id }, { $unset: { round: 1 } });
   await game.log(req.user, 'round_deleted', round.name);
-  await game.pushState();
   res.json({ ok: true });
 }));
 

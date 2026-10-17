@@ -1,7 +1,7 @@
 {
   "name": "gyanpunja-quiz-server",
   "version": "1.0.0",
-  "description": "Gyanpunja Quiz - backend (Node, Express, MongoDB, Socket.io)",
+  "description": "Gyanpunja Quiz - backend (Node, Express, MongoDB)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -16,7 +16,6 @@
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.5.0",
-    "multer": "^2.4.0",
-    "socket.io": "^4.7.5"
+    "multer": "^2.4.0"
   }
 }

@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
-// In development the browser talks to Vite (5173); /api and /socket.io are proxied to Node (5000).
+// In development the browser talks to Vite (5173); /api is proxied to Node (5000).
 export default defineConfig({
   plugins: [
     react(),
@@ -27,7 +27,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        navigateFallbackDenylist: [/^\/api\//, /^\/socket\.io(?:\/|$)/, /^\/uploads\//],
+        navigateFallbackDenylist: [/^\/api\//, /^\/uploads\//],
       },
     }),
   ],
@@ -36,7 +36,6 @@ export default defineConfig({
     proxy: {
       '/api': 'http://localhost:5000',
       '/uploads': 'http://localhost:5000',
-      '/socket.io': { target: 'http://localhost:5000', ws: true },
     },
   },
 });

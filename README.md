@@ -1,6 +1,6 @@
 # Quiz Competition
 
-A house-wise, live quiz competition platform built with **React, Node/Express, MongoDB and Socket.io**.
+A house-wise quiz competition platform built with **React, Express serverless functions, and MongoDB Atlas**. The API runs on Vercel Functions; screens refresh the persisted game state over HTTPS, so no always-on WebSocket server is needed.
 
 Control flows one way: **Admin → Host → House Leaders.**
 
@@ -23,47 +23,19 @@ npm run dev:server                      # terminal 1  -> http://localhost:5000
 npm run dev:client                      # terminal 2  -> http://localhost:5173
 ```
 
-## Deploying on Vercel
+## Deploy the full app on Vercel
 
-The repository is configured for Vercel to build the React frontend and expose the Express API as a serverless function.
+The repository's `vercel.json` builds the React app as a static site and serves the Express API through a serverless function. The game state, answer submissions, and timer deadlines are stored in MongoDB, and connected screens poll for updates every two seconds (less often while a tab is in the background).
 
-Set these Vercel environment variables before deploying:
+1. Create a MongoDB Atlas cluster and database user. In Atlas Network Access, allow Vercel's dynamic outbound addresses (commonly `0.0.0.0/0`); use a strong database password and never expose the connection string in client-side settings.
+2. Import this repository into Vercel with the repository root as the project root. The included configuration handles the frontend build and API routes.
+3. Add these server environment variables in Vercel:
+   - `MONGO_URI`: the MongoDB Atlas connection string, including the intended database name.
+   - `JWT_SECRET`: a long, random secret.
+   - `CLIENT_ORIGIN`: your deployed app origin, such as `https://your-project.vercel.app`.
+4. Remove any old `VITE_API_URL` or `VITE_SOCKET_URL` values from Vercel, then deploy. The frontend and API share the deployment origin.
 
-- `MONGO_URI`: your MongoDB Atlas connection string
-- `JWT_SECRET`: a long random secret
-- `CLIENT_ORIGIN`: your deployed Vercel URL, such as `https://your-project.vercel.app`
-
-Vercel functions do not provide a persistent WebSocket server. The live Socket.IO connection therefore needs a long-running Node host such as Render, Railway, or a VPS. When using a separate backend, also set `VITE_API_URL` and `VITE_SOCKET_URL` to that backend URL in Vercel, then redeploy.
-
-## Deploying the frontend on Netlify
-
-`netlify.toml` configures the Vite build, SPA fallback, API/media proxy, and Netlify Image CDN. Before deploying, replace every `YOUR-BACKEND-HOST` value in `netlify.toml` with the public URL of the persistent Express/Socket.IO server, for example `https://your-app.onrender.com`.
-
-Keep the backend on Render, Railway, or a VPS. Netlify and Vercel functions do not provide the persistent Socket.IO server required by the live game. Set `MONGO_URI`, `JWT_SECRET`, and `CLIENT_ORIGIN` on that backend host, and set the Netlify environment variable `VITE_SOCKET_URL` to the backend URL so the browser connects directly to the persistent Socket.IO server. `VITE_API_URL` may remain empty when using the Netlify `/api/*` proxy.
-
-## Deploying the frontend on Cloudflare Pages
-
-`wrangler.toml` configures the Cloudflare Pages project and `client/public/_redirects` preserves SPA routes such as `/display` and `/admin`.
-
-Create a Cloudflare Pages project named `aftabquiz`, connect this repository, and use:
-
-- Build command: `npm run build`
-- Build output directory: `client/dist`
-- Root directory: repository root (`.`)
-- Deploy command: leave empty for Pages Git integration, or use `npm run deploy`
-
-Set these Pages build environment variables:
-
-- `VITE_API_URL`: the public URL of the persistent Express backend
-- `VITE_SOCKET_URL`: the same backend URL for Socket.IO
-
-Keep the backend and MongoDB on Render, Railway, or a VPS. Cloudflare Pages/Workers cannot provide the persistent Socket.IO server required by the live game. Do not use `npx wrangler deploy`: that is the Workers deploy command and causes the `Missing entry-point to Worker script` error here. For CLI deployment, authenticate Wrangler with `npx wrangler login`, then run `npm run deploy`.
-
-## Deploying the backend on Render
-
-`render.yaml` is a Blueprint for the persistent backend. In Render, create a new Blueprint from this repository and set the generated service's `MONGO_URI` to a MongoDB Atlas connection string. The service cannot start without this variable; it must not be left blank or set to `mongodb://127.0.0.1:27017/...`. Render generates `JWT_SECRET` automatically. After deployment, copy the backend URL and set it as both `VITE_API_URL` and `VITE_SOCKET_URL` in the Cloudflare Pages project, then redeploy Pages.
-
-The public `GET /api/health` endpoint can be used by an external uptime monitor to ping the backend every few minutes. A route cannot keep its own sleeping server awake; configure the monitor to request `https://<your-backend-host>/api/health` on a schedule. On Render's free plan, the first request after an instance sleeps may still take time to respond.
+Uploaded images and audio are persisted in MongoDB GridFS and are limited to 4 MB per file to fit serverless request limits. Larger media can be hosted externally and added by URL. Existing MongoDB documents and accounts are retained; existing media files from a local `uploads` folder are not migrated automatically and must be re-uploaded or moved into GridFS. Run `npm run seed` only if you need to initialize or update the default tenant.
 ## Run with Docker
 
 Install Docker Desktop, copy `.env.example` to `.env`, and set a strong secret:
@@ -82,7 +54,7 @@ docker compose run --rm seed
 
 Open `http://localhost:5000` on this computer, or `http://192.168.100.2:5000` from another device on the same network (current LAN IP from `ipconfig`). If the LAN IP changes, update the `CLIENT_ORIGIN` fallback in `docker-compose.yml` or set `CLIENT_ORIGIN` in `.env`, then recreate the app with `docker compose up --build -d`. The MongoDB data is persisted in the `mongo-data` volume. Stop the containers with `docker compose down`; add `-v` only when you also want to delete the database.
 
-Admins can manage rounds in **Admin → Question bank**: add, rename, delete, and reorder them, then assign each question to a round. Questions can include an image or audio file (up to 15 MB each) or a media URL. Uploaded media is kept in the Docker `uploads-data` volume and is shown on the Host, house, and stage screens.
+Admins can manage rounds in **Admin → Question bank**: add, rename, delete, and reorder them, then assign each question to a round. Questions can include an image or audio file (up to 4 MB each) or a media URL. Uploaded media is stored in MongoDB GridFS and is shown on the Host, house, and stage screens.
 
 Seeded quiz logins (**change these before a real event**, Admin → People → Change password):
 
@@ -92,11 +64,11 @@ Seeded quiz logins (**change these before a real event**, Admin → People → C
 | `host` | `host123` | Host |
 | `ruby` / `sapphire` / `emerald` / `amber` | `<name>123` | House leader for that house |
 
-### Production (one server)
+### Production (one server, optional)
 
 ```bash
 npm run build     # builds client/dist
-npm start         # Express serves the API, sockets and the built React app on PORT
+npm start         # Express serves the API and the built React app on PORT
 ```
 
 ## How one question moves through the system
@@ -120,20 +92,21 @@ Admin approves question
 - **Scoring rules are editable.** Points per difficulty (default 10 / 20 / 30), points lost for a wrong answer (default 0), and the default timer (default 30 s) are set in Admin → Rules. The Host can override the points on any single question.
 - **Pausing.** Pausing locks a live question and blocks the Host and house leaders. The Admin keeps full control. The Host can re-present the question after resume.
 
-## Real-time events (Socket.io)
+## Game API
 
-Client → server (each takes an acknowledgement callback `{ ok, error }`):
+`POST /api/game/actions` sends game actions as `{ "event": "...", "payload": { ... } }` with a bearer token.
 
 | Event | Payload | Allowed |
 | --- | --- | --- |
 | `host:queue` | `{ questionId }` | Admin, Host |
+| `host:queueBatch` | `{ questionIds }` | Admin, Host |
 | `host:clear` | – | Admin, Host |
 | `host:present` | `{ mode: 'house' \| 'open', houseId?, duration? }` | Admin, Host |
 | `host:lock` | – | Admin, Host |
 | `host:evaluate` | `{ result: 'correct' \| 'wrong' \| 'skip', houseId?, points? }` | Admin, Host |
 | `house:submit` | `{ text }` | House leader |
 
-Server → client: `state` (role-filtered game state), `scores`, and `log` (Admin only).
+`GET /api/game/snapshot` returns role-filtered state and scores for authenticated users. The public display uses `GET /api/game/public/:slug/snapshot`. Sensitive answers remain hidden from house and display snapshots until the question is judged.
 
 ## REST API
 
@@ -149,16 +122,16 @@ All routes need `Authorization: Bearer <token>` except login.
 
 ```
 server/
-  server.js              Express + Socket.io + MongoDB entry point
+  server.js              Express + MongoDB entry point
   seed.js                First-run data
   models/                User, House, Question, GameState, ActivityLog
   routes/                auth, users, houses, questions, game
   middleware/auth.js     JWT + role checks
   services/game.js       Question lifecycle, timer, per-role state views
-  socket/index.js        Socket auth, rooms, event handlers
+api/[...path].js         Vercel serverless Express API entry point
 client/
   src/pages/             Login, Admin, Host, HouseScreen, Display
-  src/hooks/useGame.js   Socket connection + synced countdown
+  src/hooks/useGame.js   Snapshot polling + synced countdown
   src/components/ui.jsx  Scoreboard, timer ring, toasts, etc.
 ```
 
@@ -172,7 +145,7 @@ client/
 
 The Super Admin signs in at `/login` and is sent to `/platform`. From there they can create a quiz by title and provision its Admin account, view each quiz's status and activity counts, activate or deactivate a quiz, and reset its Admin password. Passwords are hashed and never displayed; the Super Admin can set a new password instead.
 
-Each quiz title is a tenant in the shared MongoDB database. Quiz-owned accounts, houses, rounds, questions, game state, and activity logs are scoped to that tenant, and live socket rooms are tenant-specific. The same username can only be used once across the platform. A tenant Admin manages their quiz's own users and competition, but cannot access or control other tenants. Deactivating a tenant prevents all of its users from logging in or using existing sessions.
+Each quiz title is a tenant in the shared MongoDB database. Quiz-owned accounts, houses, rounds, questions, game state, and activity logs are scoped to that tenant, and every snapshot is filtered to its tenant and role. The same username can only be used once across the platform. A tenant Admin manages their quiz's own users and competition, but cannot access or control other tenants. Deactivating a tenant prevents all of its users from logging in or using existing sessions.
 
 The default seed provisions the development Super Admin account `superadmin` / `superadmin123` and the example `Gyanpunja Quiz` tenant. Existing single-quiz data is assigned to that default tenant by rerunning `npm run seed`.
 

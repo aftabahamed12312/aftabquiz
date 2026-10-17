@@ -23,7 +23,6 @@ router.post(
     const { name, color } = req.body;
     const house = await House.create({ name, ...(color ? { color } : {}) });
     await game.log(req.user, 'house_created', house.name);
-    await game.pushScores();
     res.status(201).json(house);
   })
 );
@@ -37,8 +36,6 @@ router.patch(
     if (req.body.color) update.color = req.body.color;
     const house = await House.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true });
     if (!house) return res.status(404).json({ message: 'House not found.' });
-    await game.pushScores();
-    await game.pushState();
     res.json(house);
   })
 );
@@ -62,7 +59,6 @@ router.patch(
     }
     if (!house) return res.status(404).json({ message: 'House not found.' });
     await game.log(req.user, 'score_override', `${house.name}: ${detail}${reason ? ` (${reason})` : ''}`);
-    await game.pushScores();
     res.json(house);
   })
 );
@@ -80,7 +76,6 @@ router.delete(
       await User.updateMany({ house: house._id }, { house: null });
       await game.log(req.user, 'house_deleted', house.name);
     }
-    await game.pushScores();
     res.json({ ok: true });
   })
 );
